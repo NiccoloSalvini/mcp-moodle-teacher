@@ -5,16 +5,35 @@
   "license": "MIT",
   "author": "Niccolo Salvini",
   "type": "module",
-  "bin": { "mcp-moodle-teacher": "dist/index.js" },
-  "files": ["dist", "README.md", "LICENSE"],
-  "keywords": ["mcp", "modelcontextprotocol", "moodle", "teaching", "grading", "lms"],
-  "repository": { "type": "git", "url": "git+https://github.com/NiccoloSalvini/mcp-moodle-teacher.git" },
+  "bin": {
+    "mcp-moodle-teacher": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "mcp",
+    "modelcontextprotocol",
+    "moodle",
+    "teaching",
+    "grading",
+    "lms"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/NiccoloSalvini/mcp-moodle-teacher.git"
+  },
   "homepage": "https://github.com/NiccoloSalvini/mcp-moodle-teacher",
-  "engines": { "node": ">=18" },
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "build": "esbuild src/index.ts --bundle --platform=node --target=node18 --format=esm --outfile=dist/index.js --banner:js=\"import{createRequire}from'module';const require=createRequire(import.meta.url);\"",
     "typecheck": "tsc --noEmit",
-    "bundle": "npm run build && mcpb pack . dist/mcp-moodle-teacher.mcpb"
+    "bundle": "npm run build && mcpb pack . dist/mcp-moodle-teacher.mcpb",
+    "prepare": "npm run build"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
