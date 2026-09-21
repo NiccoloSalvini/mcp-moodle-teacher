@@ -1,0 +1,29 @@
+{
+  "name": "mcp-moodle-teacher",
+  "version": "0.1.0",
+  "description": "MCP server for the teacher's half of Moodle: enrolments, submissions, what is missing, grading with feedback, announcements",
+  "license": "MIT",
+  "author": "Niccolo Salvini",
+  "type": "module",
+  "bin": { "mcp-moodle-teacher": "dist/index.js" },
+  "files": ["dist", "README.md", "LICENSE"],
+  "keywords": ["mcp", "modelcontextprotocol", "moodle", "teaching", "grading", "lms"],
+  "repository": { "type": "git", "url": "git+https://github.com/NiccoloSalvini/mcp-moodle-teacher.git" },
+  "homepage": "https://github.com/NiccoloSalvini/mcp-moodle-teacher",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "build": "esbuild src/index.ts --bundle --platform=node --target=node18 --format=esm --outfile=dist/index.js --banner:js=\"import{createRequire}from'module';const require=createRequire(import.meta.url);\"",
+    "typecheck": "tsc --noEmit",
+    "bundle": "npm run build && mcpb pack . dist/mcp-moodle-teacher.mcpb"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "esbuild": "^0.28.2",
+    "typescript": "^5.7.0",
+    "@anthropic-ai/mcpb": "^2.1.2"
+  }
+}

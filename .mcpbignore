@@ -1,0 +1,15 @@
+node_modules/
+src/
+.git/
+.github/
+.omc/
+docs/
+*.mcpb
+tsconfig.json
+.mcpbignore
+.gitignore
+.env
+.env.local
+.env.example
+smoketest.mjs
+scripts/

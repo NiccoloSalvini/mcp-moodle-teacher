@@ -1,0 +1,62 @@
+{
+  "manifest_version": "0.3",
+  "name": "moodle-teacher",
+  "display_name": "Moodle (teacher)",
+  "version": "0.1.0",
+  "description": "The teacher's half of Moodle: who is enrolled, who submitted, what is missing, marking with feedback, announcements.",
+  "long_description": "Connects your Moodle to Claude from the teacher's seat rather than the student's. Reading: enrolments, course contents, assignments, submissions with their files, who has not handed in, the gradebook. Writing: a mark with written feedback on one submission, and an announcement in the course news forum. Needs a Moodle web-service token, which you get from Preferences > Security keys on your Moodle, or from your Moodle administrator.",
+  "author": { "name": "Niccolo Salvini", "url": "https://github.com/NiccoloSalvini" },
+  "homepage": "https://github.com/NiccoloSalvini/mcp-moodle-teacher",
+  "documentation": "https://github.com/NiccoloSalvini/mcp-moodle-teacher#readme",
+  "support": "https://github.com/NiccoloSalvini/mcp-moodle-teacher/issues",
+  "repository": { "type": "git", "url": "https://github.com/NiccoloSalvini/mcp-moodle-teacher" },
+  "license": "MIT",
+  "icon": "icon.png",
+  "keywords": ["moodle", "teaching", "grading", "lms", "education"],
+  "server": {
+    "type": "node",
+    "entry_point": "dist/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/dist/index.js"],
+      "env": {
+        "MOODLE_URL": "${user_config.moodle_url}",
+        "MOODLE_TOKEN": "${user_config.moodle_token}"
+      }
+    }
+  },
+  "user_config": {
+    "moodle_url": {
+      "type": "string",
+      "title": "Moodle web service address",
+      "description": "Your Moodle address followed by /webservice/rest/server.php — for example https://moodle.example.edu/webservice/rest/server.php. Use the exact host your Moodle knows itself by (with or without www).",
+      "required": true
+    },
+    "moodle_token": {
+      "type": "string",
+      "title": "Moodle token",
+      "description": "From your Moodle: Preferences > Security keys > Moodle mobile web service. If that page is empty, ask your Moodle administrator for a token.",
+      "required": true,
+      "sensitive": true
+    }
+  },
+  "compatibility": {
+    "platforms": ["darwin", "win32", "linux"],
+    "runtimes": { "node": ">=18.0.0" }
+  },
+  "tools": [
+    { "name": "whoami", "description": "Who the token belongs to and what it may do" },
+    { "name": "list_functions", "description": "Web-service functions this token may call" },
+    { "name": "my_courses", "description": "Courses this account is enrolled in" },
+    { "name": "students", "description": "Who is enrolled, with role and last access" },
+    { "name": "course_contents", "description": "Sections and modules as students see them" },
+    { "name": "assignments", "description": "Assignments with due date, scale and brief" },
+    { "name": "submissions", "description": "Who handed in what, with files" },
+    { "name": "submission_status", "description": "One student on one assignment" },
+    { "name": "missing", "description": "Students who have not submitted" },
+    { "name": "gradebook", "description": "Grade items with marks and feedback" },
+    { "name": "grade_submission", "description": "Writes a mark and feedback on a submission" },
+    { "name": "announce", "description": "Writes an announcement in the news forum" },
+    { "name": "announcements", "description": "Recent announcements" }
+  ]
+}

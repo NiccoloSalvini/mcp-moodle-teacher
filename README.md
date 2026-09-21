@@ -10,6 +10,9 @@ work. Thirteen tools, read-first, with the two writing tools marked as such.
 
 Tested against Moodle 4.5 with the standard `moodle_mobile_app` web service.
 
+**Not comfortable with a terminal?** There is nothing to type:
+[install it as an extension](docs/connect.md), with pictures.
+
 ## What it does
 
 **Reading**
@@ -45,14 +48,23 @@ link to them from Moodle.
 
 ## Install
 
+**As a Claude Desktop extension** — download `mcp-moodle-teacher.mcpb` from the
+[latest release](https://github.com/NiccoloSalvini/mcp-moodle-teacher/releases/latest),
+then Settings ▸ Extensions ▸ Install Extension… and fill in the two boxes.
+Nothing else to install: Claude Desktop runs it. The
+[illustrated walkthrough](docs/connect.md) covers this in full.
+
+**From npm**, for Codex, Claude Code or any other MCP client:
+
 ```bash
-uv tool install mcp-moodle-teacher      # or: pipx install mcp-moodle-teacher
+npx -y mcp-moodle-teacher
 ```
 
-From a clone:
+**From a clone:**
 
 ```bash
-uv venv && uv pip install -e .
+npm install && npm run build     # dist/index.js
+npm run bundle                   # dist/mcp-moodle-teacher.mcpb
 ```
 
 ## Get a token
@@ -78,7 +90,8 @@ Use the exact base URL Moodle knows itself by. If you get
 {
   "mcpServers": {
     "moodle": {
-      "command": "mcp-moodle-teacher",
+      "command": "npx",
+      "args": ["-y", "mcp-moodle-teacher"],
       "env": {
         "MOODLE_URL": "https://moodle.example.edu/webservice/rest/server.php",
         "MOODLE_TOKEN": "${MOODLE_TOKEN}"
@@ -86,6 +99,12 @@ Use the exact base URL Moodle knows itself by. If you get
     }
   }
 }
+```
+
+For Codex, one line does it:
+
+```bash
+codex mcp add moodle --env MOODLE_URL=… --env MOODLE_TOKEN=… -- npx -y mcp-moodle-teacher
 ```
 
 Export `MOODLE_TOKEN` in the shell that launches the client (`set -a; . .env; set +a`)
@@ -101,10 +120,10 @@ A Moodle web-service token is a bearer credential carrying all of your rights,
 including marking. Treat it as a password:
 
 - It is sent in the **POST body**, never in the query string, because URLs are
-  written to httpx's logs, to proxy logs and to the server's access log.
-- `httpx` and `httpcore` request logging is turned down to `WARNING` by the
-  client, so a request line never reaches a terminal scrollback or a bug report.
-- Transport errors are redacted before they become exception messages.
+  written to proxy logs, to the server's access log and to any client's request log.
+- Transport and Moodle errors are redacted before they become messages.
+- Installed as an extension, the token goes in a field marked sensitive: the app
+  stores it, and it never appears in a configuration file you might share.
 - `.env` is gitignored and written with mode 600.
 - If a token is exposed, revoke it in *Preferences → Security keys* (or ask your
   admin to delete it) and fetch a new one. Requesting a token again returns the

@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 380" width="900" height="380" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <rect width="900" height="380" fill="#ffffff"/>
+  <text x="30" y="40" font-size="20" font-weight="700" fill="#363636">Where the pieces run</text>
+  <text x="30" y="64" font-size="14" fill="#7a7f85">The extension is a small program on your own machine. Nothing is uploaded anywhere.</text>
+
+  <!-- your computer -->
+  <rect x="30" y="92" width="430" height="230" rx="4" fill="#fcfbf8" stroke="#e6e2d8"/>
+  <text x="46" y="118" font-size="11" font-weight="700" letter-spacing="1.2" fill="#a8955a">YOUR COMPUTER</text>
+
+  <rect x="52" y="134" width="180" height="76" rx="3" fill="#ffffff" stroke="#c9c4b8"/>
+  <text x="68" y="162" font-size="14" font-weight="600" fill="#363636">Claude Desktop</text>
+  <text x="68" y="184" font-size="12" fill="#7a7f85">(or Codex, or Claude Code)</text>
+
+  <rect x="262" y="134" width="176" height="76" rx="3" fill="#ffffff" stroke="#AF1F25" stroke-width="1.5"/>
+  <text x="278" y="162" font-size="14" font-weight="600" fill="#AF1F25">moodle-teacher</text>
+  <text x="278" y="184" font-size="12" fill="#7a7f85">the extension</text>
+
+  <path d="M232 172 L258 172" stroke="#7a7f85" stroke-width="1.5" marker-end="url(#a)"/>
+  <text x="228" y="224" font-size="11" fill="#7a7f85">asks for a tool</text>
+
+  <rect x="52" y="238" width="386" height="62" rx="3" fill="#fdf6f6" stroke="#e8cdce"/>
+  <text x="68" y="262" font-size="12" font-weight="600" fill="#AF1F25">Your Moodle token is stored here, by the app</text>
+  <text x="68" y="282" font-size="12" fill="#7a7f85">It never leaves your computer except to talk to Moodle itself.</text>
+
+  <!-- moodle -->
+  <path d="M470 196 L610 196" stroke="#7a7f85" stroke-width="1.5" marker-end="url(#a)"/>
+  <text x="540" y="184" font-size="12" fill="#363636" text-anchor="middle">https</text>
+  <text x="540" y="218" font-size="10" fill="#7a7f85" text-anchor="middle">/webservice/rest/server.php</text>
+
+  <rect x="620" y="92" width="250" height="230" rx="4" fill="#fcfbf8" stroke="#e6e2d8"/>
+  <text x="636" y="118" font-size="11" font-weight="700" letter-spacing="1.2" fill="#a8955a">YOUR SCHOOL</text>
+  <ellipse cx="745" cy="168" rx="72" ry="16" fill="#ffffff" stroke="#c9c4b8"/>
+  <path d="M673 168 v58 a72 16 0 0 0 144 0 v-58" fill="#ffffff" stroke="#c9c4b8"/>
+  <ellipse cx="745" cy="226" rx="72" ry="16" fill="none" stroke="#c9c4b8"/>
+  <text x="745" y="204" font-size="15" font-weight="600" fill="#363636" text-anchor="middle">Moodle</text>
+  <text x="745" y="272" font-size="12" fill="#7a7f85" text-anchor="middle">courses, submissions,</text>
+  <text x="745" y="290" font-size="12" fill="#7a7f85" text-anchor="middle">grades, announcements</text>
+
+  <text x="30" y="352" font-size="12" fill="#7a7f85">This is why the same extension file works for Claude Desktop and for Codex, and why a web-only chat cannot use it: there is nothing to run.</text>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#7a7f85"/></marker></defs>
+</svg>
