@@ -122,7 +122,7 @@ The useful questions are the ones you would otherwise answer by clicking through
 Moodle for ten minutes:
 
 - *Who has not submitted homework 3 in the Research course?*
-- *Show me what Kurai handed in for assignment 2.*
+- *Show me what the third student handed in for assignment 2.*
 - *Which students have not logged in since the course started?*
 - *Draft an announcement saying the deadline moves to Sunday, and show it to me
   before posting.*
