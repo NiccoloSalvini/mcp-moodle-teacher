@@ -88,7 +88,7 @@ you. This one is unavoidably a terminal step, but it is a single line:
 codex mcp add moodle \
   --env MOODLE_URL=https://moodle.example.edu/webservice/rest/server.php \
   --env MOODLE_TOKEN=paste-your-token-here \
-  -- npx -y mcp-moodle-teacher
+  -- npx -y github:NiccoloSalvini/mcp-moodle-teacher
 ```
 
 `codex mcp list` then shows it. The same extension logic applies: the program
@@ -103,7 +103,7 @@ In the folder of the course you are working on, create `.mcp.json`:
   "mcpServers": {
     "moodle": {
       "command": "npx",
-      "args": ["-y", "mcp-moodle-teacher"],
+      "args": ["-y", "github:NiccoloSalvini/mcp-moodle-teacher"],
       "env": {
         "MOODLE_URL": "${MOODLE_URL}",
         "MOODLE_TOKEN": "${MOODLE_TOKEN}"

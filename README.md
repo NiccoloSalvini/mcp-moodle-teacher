@@ -54,10 +54,11 @@ then Settings ▸ Extensions ▸ Install Extension… and fill in the two boxes.
 Nothing else to install: Claude Desktop runs it. The
 [illustrated walkthrough](docs/connect.md) covers this in full.
 
-**From npm**, for Codex, Claude Code or any other MCP client:
+**From the command line**, for Codex, Claude Code or any other MCP client — it
+builds itself on install, so there is nothing to clone:
 
 ```bash
-npx -y mcp-moodle-teacher
+npx -y github:NiccoloSalvini/mcp-moodle-teacher
 ```
 
 **From a clone:**
@@ -91,7 +92,7 @@ Use the exact base URL Moodle knows itself by. If you get
   "mcpServers": {
     "moodle": {
       "command": "npx",
-      "args": ["-y", "mcp-moodle-teacher"],
+      "args": ["-y", "github:NiccoloSalvini/mcp-moodle-teacher"],
       "env": {
         "MOODLE_URL": "https://moodle.example.edu/webservice/rest/server.php",
         "MOODLE_TOKEN": "${MOODLE_TOKEN}"
@@ -104,7 +105,7 @@ Use the exact base URL Moodle knows itself by. If you get
 For Codex, one line does it:
 
 ```bash
-codex mcp add moodle --env MOODLE_URL=… --env MOODLE_TOKEN=… -- npx -y mcp-moodle-teacher
+codex mcp add moodle --env MOODLE_URL=… --env MOODLE_TOKEN=… -- npx -y github:NiccoloSalvini/mcp-moodle-teacher
 ```
 
 Export `MOODLE_TOKEN` in the shell that launches the client (`set -a; . .env; set +a`)
