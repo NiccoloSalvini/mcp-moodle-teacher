@@ -15,13 +15,17 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 
-import { basename } from "node:path";
+import { writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
+import { basename, isAbsolute, join as joinPath } from "node:path";
 
+import PAGE from "./timetable-page.html";
+import { dayLabel, findClashes, mins, mondayOf, romeMidnight, romeParts, roomFrom, whatsapp, type Lesson } from "./timetable.js";
 import { assessmentOf, gradeFiles, moduleKey, readGradeFile, type FileName } from "./grades.js";
 import { Moodle, MoodleError, plain, when } from "./moodle.js";
 
 const server = new McpServer(
-  { name: "moodle-teacher", version: "0.2.0" },
+  { name: "moodle-teacher", version: "0.3.0" },
   {
     instructions:
       "Teacher-side Moodle. The read tools answer: who is enrolled, who submitted, " +
@@ -939,6 +943,220 @@ tool(
     }
     return out;
   },
+);
+
+// ----------------------------------------------------------------- timetable
+//
+// The week's lessons across a campus, straight from Moodle: every lesson is an
+// attendance session, shown by Moodle as a calendar event. The room lives in the
+// session description ("Aula: DREAM"). Replaces the room grid kept in Excel.
+
+const categoryOf = (shortname: string) =>
+  /^MBA/i.test(shortname) ? "mba" : /^MS|^MA\d/i.test(shortname) ? "msc" : /^SH/i.test(shortname) ? "sc"
+    : /^(IT|SP|EN|LAN)/i.test(shortname) ? "lang" : "ug";
+
+async function weekLessons(search: string, week?: string) {
+  const monday = mondayOf(week);
+  const from = romeMidnight(monday);
+  const to = from + 7 * 86400;
+
+  const found = await moodle().call<any>("core_course_search_courses", {
+    criterianame: "search", criteriavalue: search, perpage: 500,
+  });
+  const courses = new Map<number, any>((found.courses ?? []).map((c: any) => [Number(c.id), c]));
+  const ids = [...courses.keys()];
+
+  const events: any[] = [];
+  for (let i = 0; i < ids.length; i += 50) {
+    const data = await moodle().call<any>("core_calendar_get_calendar_events", {
+      events: { courseids: ids.slice(i, i + 50) },
+      options: { userevents: false, siteevents: false, timestart: from, timeend: to },
+    });
+    events.push(...(data.events ?? []));
+  }
+  // A lesson is an attendance session, or a course event someone added by hand.
+  const sessions = events.filter((e) => e.modulename === "attendance" || e.eventtype === "course");
+
+  const people = new Map<number, { lecturers: string[]; students: number }>();
+  for (const id of new Set(sessions.map((e) => Number(e.courseid)))) {
+    const users = await moodle().call<any[]>("core_enrol_get_enrolled_users", { courseid: id });
+    const role = (u: any) => (u.roles ?? []).map((r: any) => String(r.shortname));
+    people.set(id, {
+      lecturers: users.filter((u) => role(u).some((r: string) => /teacher|lecturer|docente|tutor/i.test(r))).map((u) => u.fullname),
+      students: users.filter((u) => role(u).includes("student")).length,
+    });
+  }
+
+  const lessons: Lesson[] = sessions.map((e) => {
+    const start = romeParts(Number(e.timestart));
+    const end = romeParts(Number(e.timestart) + Number(e.timeduration || 0));
+    const c = courses.get(Number(e.courseid));
+    const text = plain(e.description ?? "");
+    const { room, online } = roomFrom(text);
+    const who = people.get(Number(e.courseid)) ?? { lecturers: [], students: 0 };
+    return {
+      day: start.weekday, date: start.date, start: start.time, end: end.time,
+      courseid: Number(e.courseid),
+      // "SHC015 AI for Business T1" -> "AI for Business": the code is in shortname already.
+      course: plain(c?.fullname ?? e.name).replace(/^[A-Z]{2,4}\d{2,4}\s+/, "").replace(/\s+T\d\s*$/, "").trim(),
+      shortname: c?.shortname ?? "",
+      lecturers: who.lecturers, students: who.students,
+      room: room ?? (online ? "ONLINE" : null),
+      note: text.replace(/(?:aula|room)\s*[:\-–]?\s*[^\n,;.(]*/i, "").trim().slice(0, 120),
+    };
+  }).sort((a, b) => a.date.localeCompare(b.date) || mins(a.start) - mins(b.start));
+
+  return { monday, courses: courses.size, lessons };
+}
+
+const lower = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
+
+const homePath = (p: string) => (p.startsWith("~/") ? joinPath(homedir(), p.slice(2)) : isAbsolute(p) ? p : joinPath(homedir(), p));
+
+function timetablePage(monday: string, campus: string, search: string, lessons: Lesson[]) {
+  const friday = new Date(`${monday}T12:00:00Z`); friday.setUTCDate(friday.getUTCDate() + 4);
+  const lastDay = Math.max(4, ...lessons.map((l) => l.day));
+  const days = Array.from({ length: lastDay + 1 }, (_, i) => {
+    const d = new Date(`${monday}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + i);
+    const label = dayLabel(d.toISOString().slice(0, 10));
+    return { short: label.slice(0, 3), long: label };
+  });
+  // The rooms of the campus, so free rooms show even before every session has one.
+  const known = campus === "ESE Firenze" ? ["DREAM", "VICTORY", "REFLECTION", "CONTEMPLATION", "LIBRARY"] : [];
+  const named = [...new Set([...known, ...lessons.map((l) => l.room).filter((r): r is string => !!r && r !== "ONLINE")])];
+  const rooms = [...named, "ONLINE", ...(lessons.some((l) => !l.room) ? ["DA DEFINIRE"] : [])];
+  const data = {
+    title: `Aule · ${campus}`,
+    campus,
+    week: `Settimana dal ${lower(dayLabel(monday))} al ${lower(dayLabel(friday.toISOString().slice(0, 10)))}`,
+    source: `Da Moodle (corsi "${search}"), generato il ${new Date().toLocaleString("it-IT", { timeZone: "Europe/Rome" })}.`,
+    rooms, days,
+    lessons: lessons.map((l) => ({
+      day: l.day, room: l.room ?? "DA DEFINIRE", start: l.start, end: l.end, course: l.course,
+      prof: l.lecturers.join(", "), group: l.shortname, students: l.students ? String(l.students) : "",
+      remote: l.note, cat: categoryOf(l.shortname),
+    })),
+  };
+  // JSON inside a <script>: "</" must not close the tag.
+  return PAGE.replace("/*__DATA__*/null", JSON.stringify(data).replace(/<\//g, "<\\/"));
+}
+
+tool(
+  "timetable",
+  "The lessons of one week across a campus, from Moodle: day, time, room, course, " +
+    "lecturers and number of students, plus room clashes, a lecturer in two places, " +
+    "lessons with no room yet, and the week as a WhatsApp message. The room is read from " +
+    "the attendance session description ('Aula: DREAM'). With page_path it also writes " +
+    "the week as a web page (per room, per lecturer, free rooms) to open in a browser.",
+  {
+    search: z.string().default("_FL").describe('Which courses: text in their short name, e.g. "262701_FL" = Florence, AY 26/27, term 1'),
+    week: z.string().optional().describe("Any date in the week, YYYY-MM-DD; default this week"),
+    lecturer: z.string().optional().describe("Only this lecturer's lessons (part of the name)"),
+    page_path: z.string().optional().describe('Where to save the web page, e.g. "Desktop/orario.html"'),
+  },
+  async ({ search, week, lecturer, page_path }) => {
+    const { monday, courses, lessons: all } = await weekLessons(search, week);
+    const lessons = lecturer
+      ? all.filter((l) => l.lecturers.some((n) => n.toLowerCase().includes(lecturer.toLowerCase())))
+      : all;
+    const clashes = findClashes(all);
+    const campus = /_FL\b|_FL$/i.test(search) ? "ESE Firenze" : "ESE";
+    let page: string | null = null;
+    if (page_path) {
+      page = homePath(page_path);
+      await writeFile(page, timetablePage(monday, campus, search, all), "utf8");
+    }
+    const title = lecturer ? `Prof. ${lecturer}, le sue lezioni · ${campus}` : `Lezioni · ${campus}`;
+    return {
+      week_of: monday,
+      courses_searched: courses,
+      lessons: lessons.length,
+      clashes: clashes.map((c) => ({ why: c.why, date: c.a.date, a: `${c.a.start}–${c.a.end} ${c.a.course}`, b: `${c.b.start}–${c.b.end} ${c.b.course}` })),
+      without_room: all.filter((l) => !l.room).map((l) => `${l.date} ${l.start} ${l.course}`),
+      whatsapp: whatsapp(lessons, title, `Settimana dal ${lower(dayLabel(monday))}`, !lecturer),
+      page,
+      list: lessons.map((l) => ({ date: l.date, start: l.start, end: l.end, room: l.room, course: l.course, lecturers: l.lecturers, students: l.students })),
+    };
+  },
+);
+
+// ------------------------------------------------------------------ prompts
+//
+// Ready-made requests the academic office picks from the app's menu instead of
+// writing a prompt. They describe the job in plain Italian and name the tools.
+
+const STYLE =
+  "Rispondi in italiano semplice, senza termini tecnici: chi legge lavora in segreteria, non è una programmatrice. " +
+  "Niente nomi di tool o di funzioni nella risposta. Prima di qualunque azione che cambia Moodle o manda messaggi, chiedi conferma.";
+
+server.registerPrompt(
+  "orario_settimana",
+  {
+    title: "Orario della settimana",
+    description: "Le lezioni della settimana con aule, docenti e studenti; conflitti; messaggio WhatsApp; pagina da aprire",
+    argsSchema: { settimana: z.string().optional().describe("Un giorno della settimana, es. 2026-10-05 (vuoto = questa settimana)") },
+  },
+  ({ settimana }) => ({
+    messages: [{
+      role: "user",
+      content: {
+        type: "text",
+        text:
+          `Preparami l'orario della settimana ${settimana ? `che contiene il ${settimana}` : "corrente"} per la sede di Firenze. ` +
+          `Usa timetable con search "_FL"${settimana ? ` e week "${settimana}"` : ""} e page_path "Desktop/orario-settimana.html". ` +
+          "Poi dimmi, in quest'ordine: 1) se ci sono sovrapposizioni (stessa aula o stesso docente), 2) quali lezioni non hanno ancora un'aula, " +
+          "3) il messaggio WhatsApp pronto da copiare, in un blocco a parte, 4) che la pagina è sulla Scrivania. " + STYLE,
+      },
+    }],
+  }),
+);
+
+server.registerPrompt(
+  "carica_voti",
+  {
+    title: "Carica i voti dei professori",
+    description: "Controlla la cartella di Excel dei professori e prepara i file da importare su Moodle",
+    argsSchema: { cartella: z.string().describe('La cartella con gli Excel, es. "Downloads/Voti T1"') },
+  },
+  ({ cartella }) => ({
+    messages: [{
+      role: "user",
+      content: {
+        type: "text",
+        text:
+          `Nella cartella "${cartella}" (percorso a partire dalla mia cartella utente) ci sono gli Excel con i voti mandati dai professori. ` +
+          "1) Controllali con grades_check e riassumimi per ogni file: corso Moodle trovato, quanti voti sono pronti, quanti bloccati e perché, " +
+          "e gli studenti iscritti che mancano dal file. 2) Chiedimi conferma. 3) Crea i file per Moodle con grades_csv nella cartella " +
+          `"${cartella} - per Moodle". 4) Spiegami passo passo come importarli su Moodle (Valutazioni > Importa > File CSV, abbinare "ID number" a ` +
+          "useridnumber, ogni colonna alla voce con lo stesso nome). 5) Ricordami di tornare qui dopo l'import per il controllo finale con grades_verify. " +
+          "Le righe bloccate sono in _to_check.csv: preparami una breve mail per ciascun professore con le sue righe da chiarire. " + STYLE,
+      },
+    }],
+  }),
+);
+
+server.registerPrompt(
+  "controllo_presenze",
+  {
+    title: "Controllo presenze del venerdì",
+    description: "Assenze della settimana per ogni corso, registri non compilati, studenti che hanno raggiunto una soglia",
+    argsSchema: { soglia: z.string().optional().describe("Numero di assenze che fa scattare l'avviso (predefinito 2)") },
+  },
+  ({ soglia }) => ({
+    messages: [{
+      role: "user",
+      content: {
+        type: "text",
+        text:
+          "Fai il controllo presenze della settimana per la sede di Firenze. Trova i corsi con timetable (search \"_FL\"), " +
+          `poi per ciascuno usa attendance_report con max_absences ${soglia || "2"} e lates_per_absence 3. ` +
+          "Dimmi: 1) le lezioni della settimana il cui registro non risulta compilato (vanno sollecitati i docenti, e quelle lezioni non contano come assenze), " +
+          "2) gli studenti che hanno raggiunto la soglia, corso per corso, distinguendo assenze giustificate e non, " +
+          "3) per ciascuno una bozza di mail di avviso dal tono pacato. Non inviare nulla: sono bozze da rivedere. " +
+          "Se i dati delle presenze non sono accessibili, spiegami che serve l'abilitazione da parte dell'amministratore di Moodle. " + STYLE,
+      },
+    }],
+  }),
 );
 
 const transport = new StdioServerTransport();

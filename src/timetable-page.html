@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aule · orario della settimana</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Palette of the ESE course sites: red, gold, near-black ink, warm rules, square corners. */
+:root{
+  --ground:#ffffff; --paper:#fcfbf8; --ink:#363636; --muted:#7a7f85; --rule:#e6e2d8; --hover:#faf8f3;
+  --red:#AF1F25; --red-dark:#8f171c; --gold:#CDBA80; --gold-dark:#a8955a; --on-red:#ffffff;
+  --warn:#AF1F25; --warn-bg:#fbeaea; --ok:#3f7a52; --ok-bg:#e8f2eb;
+  --c-mba:#f3dcdc; --c-mba-ink:#7d1519;
+  --c-msc:#e4e3ef; --c-msc-ink:#3f3d6b;
+  --c-ug:#ece7da; --c-ug-ink:#5b4b20;
+  --c-sc:#e3ece6; --c-sc-ink:#2f5a3e;
+  --c-lang:#e2eaf0; --c-lang-ink:#2d4c63;
+  --c-ws:#eeeeec; --c-ws-ink:#4a4d52;
+  --c-master:#efe4d2; --c-master-ink:#6d4a17;
+  color-scheme:light;
+}
+/* Always white, like the course sites: no dark variant. */
+*{box-sizing:border-box;border-radius:0}
+body{margin:0;background:var(--ground);color:var(--ink);font:17px/1.5 "Source Sans 3","Source Sans Pro",-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+.mono{font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums}
+.bar{border-bottom:3px solid var(--red);background:var(--ground)}
+.bar-in{max-width:1200px;margin:0 auto;padding-inline:20px;padding-block:14px;display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center;justify-content:space-between}
+.brand{font-weight:700;font-size:18px}
+.brand span{font-weight:400;color:var(--muted);font-size:.85em;letter-spacing:.04em;margin-left:6px}
+.roles{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center}
+.wrap{max-width:1200px;margin:0 auto;padding-inline:20px;padding-block:26px 64px;display:grid;gap:24px}
+.kicker{display:block;font-size:12.5px;text-transform:uppercase;letter-spacing:.12em;color:var(--gold-dark);font-weight:700;margin-bottom:6px}
+.hero{border-bottom:1px solid var(--rule);padding-bottom:18px;color:var(--muted)}
+.hero h1{margin:0 0 6px;color:var(--ink);font-size:32px;line-height:1.12;font-weight:700;letter-spacing:-.01em;text-wrap:balance}
+.hero p{margin:0;max-width:68ch}
+.hero strong{color:var(--ink)}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px}
+.facts > div{border:1px solid var(--rule);border-top:3px solid var(--red);padding:10px 14px;background:var(--paper)}
+.facts .k{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--gold-dark);font-weight:700;margin-bottom:2px}
+.facts .v{font-weight:600;font-size:22px}
+.label{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--gold-dark);font-weight:700}
+.toolbar{display:flex;flex-wrap:wrap;gap:12px 16px;align-items:end}
+.field{display:grid;gap:4px}
+select,input[type=time],input[type=search]{font:inherit;font-size:15px;color:var(--ink);background:var(--ground);border:1px solid var(--rule);padding:6px 10px;min-width:0}
+select:focus-visible,input:focus-visible,button:focus-visible{outline:2px solid var(--red);outline-offset:2px}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--rule);background:var(--ground)}
+.seg button{font:600 13px "Source Sans 3",sans-serif;text-transform:uppercase;letter-spacing:.07em;border:0;background:transparent;color:var(--muted);padding:8px 12px;cursor:pointer}
+.seg button:hover{color:var(--red)}
+.seg button[aria-pressed="true"]{background:var(--red);color:var(--on-red)}
+.legend{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-size:13px;font-weight:600;padding:1px 8px}
+.cat-mba{background:var(--c-mba);color:var(--c-mba-ink)} .cat-msc{background:var(--c-msc);color:var(--c-msc-ink)}
+.cat-ug{background:var(--c-ug);color:var(--c-ug-ink)} .cat-sc{background:var(--c-sc);color:var(--c-sc-ink)}
+.cat-lang{background:var(--c-lang);color:var(--c-lang-ink)} .cat-ws{background:var(--c-ws);color:var(--c-ws-ink)}
+.cat-master{background:var(--c-master);color:var(--c-master-ink)}
+.who{background:var(--paper);border:1px solid var(--rule);border-left:4px solid var(--gold);padding:10px 14px;font-size:15px;color:var(--muted)}
+.who strong{color:var(--ink)}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:24px;align-items:start}
+.layout.solo{grid-template-columns:minmax(0,1fr) 330px}
+@media (max-width:1000px){.layout,.layout.solo{grid-template-columns:1fr}}
+h2.day{margin:0 0 8px;font-size:18px;font-weight:700;border-left:4px solid var(--gold);padding-left:10px;display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline}
+h2.day small{font-size:14px;font-weight:400;color:var(--muted)}
+.dayblock + .dayblock{margin-top:26px}
+.scroller{overflow-x:auto;border:1px solid var(--rule)}
+.gantt{min-width:800px}
+.axis,.lane{display:grid;grid-template-columns:128px 1fr}
+.axis{border-bottom:2px solid var(--red);background:var(--paper)}
+.ticks{position:relative;height:26px}
+.tick{position:absolute;top:5px;transform:translateX(-50%);font-size:11.5px;color:var(--muted)}
+.lane{border-bottom:1px solid var(--rule)}
+.lane:last-child{border-bottom:0}
+.room{padding:10px 12px;font-size:12.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gold-dark);border-right:1px solid var(--rule);display:flex;align-items:center;background:var(--paper)}
+.track{position:relative;background-image:linear-gradient(to right,var(--rule) 1px,transparent 1px);background-size:var(--hour) 100%}
+.blk{position:absolute;padding:4px 7px;font-size:13px;line-height:1.22;overflow:hidden;border:1px solid transparent}
+.blk .t{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.blk .m{font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.9}
+.blk.dim{opacity:.16}
+.blk.clash{border:2px solid var(--warn)}
+.blk.tbd{border-style:dashed;border-color:currentColor}
+.list{width:100%;border-collapse:collapse;font-size:15.5px}
+.list th{text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:700;border-bottom:2px solid var(--red);padding:6px 8px;white-space:nowrap}
+.list td{padding:9px 8px;border-bottom:1px solid var(--rule);vertical-align:top}
+.list tr:hover td{background:var(--hover)}
+.list td.when{white-space:nowrap;color:var(--gold-dark);font-weight:700}
+.list td.room-c{white-space:nowrap;font-weight:600}
+.list .sub{color:var(--muted);font-size:14px}
+.side{display:grid;gap:18px;position:sticky;top:calc(env(safe-area-inset-top,0px) + 12px)}
+@media (max-width:1000px){.side{position:static}}
+.panel{background:var(--paper);border:1px solid var(--rule);border-top:3px solid var(--red);padding:14px 16px;display:grid;gap:10px}
+.panel h3{margin:0;font-size:16px;font-weight:700}
+.free{display:flex;flex-wrap:wrap;gap:6px}
+.room-pill{font-size:12.5px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;padding:3px 9px;background:var(--ok-bg);color:var(--ok)}
+.busy-list{margin:0;padding:0;list-style:none;font-size:14px;color:var(--muted);display:grid;gap:3px}
+.checks{margin:0;padding:0;list-style:none;display:grid;gap:6px;font-size:14.5px}
+.checks li{display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:baseline}
+.dot{width:8px;height:8px;display:inline-block;transform:translateY(-1px)}
+.dot.ok{background:var(--ok)} .dot.warn{background:var(--warn)}
+textarea{width:100%;min-height:240px;resize:vertical;font:13px/1.45 "JetBrains Mono",ui-monospace,monospace;color:var(--ink);background:var(--ground);border:1px solid var(--rule);padding:10px}
+.btn{font:700 13px "Source Sans 3",sans-serif;text-transform:uppercase;letter-spacing:.08em;background:var(--red);color:var(--on-red);border:0;padding:9px 14px;cursor:pointer;justify-self:start}
+.btn:hover{background:var(--red-dark)}
+.note{font-size:14px;color:var(--muted);margin:0}
+.hint{font-size:14px;color:var(--muted)}
+footer{border-top:1px solid var(--rule);padding-top:14px;color:var(--muted);font-size:14px;display:flex;flex-wrap:wrap;gap:6px 24px;justify-content:space-between}
+@media (prefers-reduced-motion:no-preference){.blk{transition:opacity .15s}}
+</style>
+</head>
+<body>
+
+<div class="bar"><div class="bar-in">
+  <div class="brand" id="brand"></div>
+  <div class="roles">
+    <span class="label">Vista</span>
+    <div class="seg" id="role" role="group" aria-label="Vista"></div>
+    <select id="who" aria-label="Persona"></select>
+  </div>
+</div></div>
+
+<div class="wrap">
+  <header class="hero">
+    <span class="kicker" id="kicker"></span>
+    <h1 id="h1">Chi è dove, quando, con quanti studenti</h1>
+    <p id="lede"></p>
+  </header>
+
+  <div class="facts" id="facts"></div>
+
+  <div class="toolbar">
+    <div class="field"><span class="label">Giorno</span><div class="seg" id="days" role="group" aria-label="Giorno"></div></div>
+    <div class="field" id="q-field"><label class="label" for="q">Cerca</label><input id="q" type="search" placeholder="corso, gruppo, aula…"></div>
+    <div class="legend" id="legend"></div>
+  </div>
+
+  <div class="layout" id="layout">
+    <main id="days-out"></main>
+    <aside class="side" id="side">
+      <section class="panel" id="p-free" aria-labelledby="free-h">
+        <h3 id="free-h">Trova un'aula libera</h3>
+        <div class="toolbar">
+          <div class="field"><label class="label" for="f-day">Giorno</label><select id="f-day"></select></div>
+          <div class="field"><label class="label" for="f-from">Dalle</label><input id="f-from" type="time" value="14:30" step="900"></div>
+          <div class="field"><label class="label" for="f-to">Alle</label><input id="f-to" type="time" value="17:30" step="900"></div>
+        </div>
+        <div class="free" id="free-out"></div>
+        <ul class="busy-list" id="busy-out"></ul>
+      </section>
+      <section class="panel" id="p-checks" aria-labelledby="chk-h">
+        <h3 id="chk-h">Controlli automatici</h3>
+        <ul class="checks" id="checks"></ul>
+      </section>
+      <section class="panel" aria-labelledby="wa-h">
+        <h3 id="wa-h">Messaggio WhatsApp</h3>
+        <p class="note" id="wa-note"></p>
+        <textarea id="wa" readonly aria-label="Testo del messaggio"></textarea>
+        <button class="btn" id="copy" type="button">Copia il messaggio</button>
+        <span class="hint" id="copied" aria-live="polite"></span>
+      </section>
+    </aside>
+  </div>
+
+  <footer>
+    <span id="source"></span>
+    <span>Per cambiare aula o orario: modificare la sessione nel registro presenze di Moodle ("Aula: NOME" nella descrizione), poi rigenerare.</span>
+  </footer>
+</div>
+
+<script>
+const DATA = /*__DATA__*/null;
+const ROOMS = DATA.rooms;
+const PHYSICAL = new Set(ROOMS.filter(r => r !== "ONLINE" && r !== "DA DEFINIRE"));
+const DAYS = DATA.days;
+const CATS = {mba:"MBA", msc:"MSc", ug:"Bachelor", sc:"Short course", lang:"Lingue", ws:"Altro", master:"Master"};
+const L = DATA.lessons.map((l,i) => ({...l, id:i}));
+const DAY_NOTES = [];
+const STUDENTS = {};
+
+const T0 = 9*60, T1 = 19.5*60;
+const mins = s => { const [h,m] = s.split(":").map(Number); return h*60+m; };
+const endOf = l => l.end ? mins(l.end) : (l.start ? mins(l.start)+90 : null);
+const pct = m => ((m - T0) / (T1 - T0)) * 100;
+const overlap = (a,b) => Boolean(a.start && b.start) && mins(a.start) < endOf(b) && mins(b.start) < endOf(a);
+const profsOf = l => l.prof.split(/,\s*/).filter(Boolean);
+
+// Markup is built from the fixed data above; every string goes through esc().
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const put = (el, markup) => el.replaceChildren(document.createRange().createContextualFragment(markup));
+const $ = s => document.querySelector(s);
+
+const clashes = [];
+for (const a of L) for (const b of L) {
+  if (a.id >= b.id || a.day !== b.day || !overlap(a,b)) continue;
+  if (a.room === b.room && PHYSICAL.has(a.room)) clashes.push({a,b,why:`stessa aula ${a.room}`});
+  const shared = profsOf(a).find(p => profsOf(b).includes(p));
+  if (shared) clashes.push({a,b,why:`${shared} in due lezioni`});
+}
+const clashIds = new Set(clashes.flatMap(c => [c.a.id, c.b.id]));
+
+const PROFS = [...new Set(L.flatMap(profsOf))].sort((a,b)=>a.localeCompare(b));
+const state = { role: "staff", who: "", day: -1, q: "" };
+
+// What the viewer is allowed to see at all — the role, not a filter they can undo.
+const visible = l => state.role === "staff" ? true
+  : state.role === "prof" ? profsOf(l).includes(state.who)
+  : (STUDENTS[state.who] ?? []).includes(l.course);
+const matches = l => !state.q || [l.course,l.group,l.room,l.prof,l.remote].join(" ").toLowerCase().includes(state.q.toLowerCase());
+const mine = () => L.filter(visible);
+
+function header(){
+  $("#brand").textContent = DATA.title;
+  $("#kicker").textContent = DATA.week;
+  $("#source").textContent = DATA.source;
+  const h = { staff:"Tutte le aule della sede", prof:`Le lezioni di ${state.who}`, student:`Il calendario di ${state.who}` }[state.role];
+  const p = {
+    staff: "Vista della segreteria: ogni aula, ogni docente, ogni gruppo. Qui si vedono le aule libere e le sovrapposizioni.",
+    prof: "Vista del docente: solo le sue lezioni, con aula e numero di studenti. Non vede i corsi dei colleghi.",
+    student: "Vista dello studente: solo i corsi a cui è iscritto, con aula e orario. Non vede gli altri corsi né i numeri delle classi.",
+  }[state.role];
+  $("#h1").textContent = h;
+  $("#lede").textContent = p;
+}
+
+function facts(){
+  const items = mine().filter(l => l.start);
+  const hours = items.filter(l=>l.end).reduce((s,l) => s + (mins(l.end)-mins(l.start))/60, 0);
+  let rows;
+  if (state.role === "staff") {
+    const inRoom = L.filter(l => PHYSICAL.has(l.room) && l.start && l.end);
+    const used = inRoom.reduce((s,l) => s + (mins(l.end)-mins(l.start))/60, 0);
+    rows = [["Voci in calendario", L.length], ["Docenti", PROFS.length],
+      ["Aule occupate", Math.round(used/(PHYSICAL.size*DAYS.length*8.5)*100) + "%"], ["Sovrapposizioni", clashes.length]];
+  } else {
+    const days = new Set(items.map(l=>l.day)).size;
+    rows = [["Lezioni", items.length], ["Ore", hours.toLocaleString("it-IT")], ["Giorni in sede", days],
+      state.role === "prof" ? ["Studenti in aula", items.reduce((s,l)=>s + (parseInt(l.students) || 0), 0)] : ["Aule diverse", new Set(items.map(l=>l.room)).size]];
+  }
+  put($("#facts"), rows.map(([k,v]) => `<div><span class="k">${esc(k)}</span><span class="v mono">${esc(v)}</span></div>`).join(""));
+}
+
+function rowsFor(items){
+  const rows = [];
+  for (const l of items.filter(l=>l.start).sort((a,b)=>mins(a.start)-mins(b.start))) {
+    let r = rows.findIndex(row => row.every(x => !overlap(x,l)));
+    if (r < 0) { rows.push([]); r = rows.length-1; }
+    rows[r].push(l); l._row = r;
+  }
+  return Math.max(rows.length, 1);
+}
+
+// Staff: a timeline per room, to see where the gaps are.
+function staffDay(i){
+  const items = L.filter(l => l.day === i);
+  const count = items.filter(l => l.start && matches(l)).length;
+  const ticks = [];
+  for (let h = 9; h <= 19; h++) ticks.push(`<span class="tick mono" style="left:${pct(h*60)}%">${h}:00</span>`);
+  const H = 46;
+  const lanes = ROOMS.map(room => {
+    const inLane = items.filter(l => l.room === room);
+    const n = rowsFor(inLane);
+    const blocks = inLane.filter(l=>l.start).map(l => {
+      const left = pct(mins(l.start)), width = pct(endOf(l)) - left;
+      const cls = ["blk",`cat-${l.cat}`, matches(l)?"":"dim", clashIds.has(l.id)?"clash":"", l.end?"":"tbd"].join(" ");
+      const meta = [l.prof, l.students && `${l.students} stud`, l.remote].filter(Boolean).join(" · ");
+      const tip = `${l.start}–${l.end ?? "?"} · ${l.course}${meta ? " · " + meta : ""}${l.group ? " · " + l.group : ""}`;
+      return `<div class="${cls}" title="${esc(tip)}" style="left:${left}%;width:calc(${width}% - 3px);top:${4 + l._row*H}px;height:${H-8}px">
+        <div class="t">${esc(l.course)}</div><div class="m mono">${esc(l.start)}–${esc(l.end ?? "?")}${meta ? " · " + esc(meta) : ""}</div></div>`;
+    }).join("");
+    return `<div class="lane"><div class="room">${room}</div><div class="track" style="height:${n*H}px">${blocks}</div></div>`;
+  }).join("");
+  const note = DAY_NOTES.filter(n=>n.day===i).map(n=>` · ${esc(n.text)}`).join("");
+  return `<section class="dayblock"><h2 class="day">${esc(DAYS[i].long)} <small>${count} ${count===1?"voce":"voci"}${note}</small></h2>
+    <div class="scroller"><div class="gantt" style="--hour:${100/((T1-T0)/60)}%">
+      <div class="axis"><div></div><div class="ticks">${ticks.join("")}</div></div>${lanes}</div></div></section>`;
+}
+
+// Lecturer and student: a plain agenda of their own lessons.
+function personalDay(i){
+  const items = mine().filter(l => l.day === i && l.start && matches(l)).sort((a,b)=>mins(a.start)-mins(b.start));
+  if (!items.length) return "";
+  const rows = items.map(l => {
+    const where = l.room === "ONLINE" ? "Online" : `Aula ${l.room}`;
+    const detail = state.role === "prof"
+      ? [l.group, l.students && `${l.students} studenti`, l.remote].filter(Boolean).join(" · ")
+      : [l.prof && `Prof. ${l.prof}`, l.remote && l.remote.startsWith("online") ? l.remote : ""].filter(Boolean).join(" · ");
+    return `<tr><td class="when mono">${esc(l.start)}–${esc(l.end ?? "?")}</td><td class="room-c">${esc(where)}</td>
+      <td><strong>${esc(l.course)}</strong>${detail ? `<div class="sub">${esc(detail)}</div>` : ""}</td></tr>`;
+  }).join("");
+  return `<section class="dayblock"><h2 class="day">${esc(DAYS[i].long)}</h2>
+    <table class="list"><thead><tr><th>Orario</th><th>Dove</th><th>Lezione</th></tr></thead><tbody>${rows}</tbody></table></section>`;
+}
+
+function freeRooms(){
+  const i = Number($("#f-day").value), from = $("#f-from").value, to = $("#f-to").value;
+  if (!from || !to || mins(to) <= mins(from)) {
+    put($("#free-out"), `<span class="hint">L'ora di fine deve venire dopo l'inizio.</span>`); put($("#busy-out"), ""); return;
+  }
+  const busy = L.filter(l => l.day === i && PHYSICAL.has(l.room) && overlap(l, {start:from, end:to}));
+  const busyRooms = new Set(busy.map(l => l.room));
+  const free = [...PHYSICAL].filter(r => !busyRooms.has(r));
+  put($("#free-out"), free.length ? free.map(r => `<span class="room-pill">${r}</span>`).join("") : `<span class="hint">Nessuna aula libera in questa fascia.</span>`);
+  put($("#busy-out"), busy.map(l => `<li><span class="mono">${esc(l.start)}–${esc(l.end ?? "?")}</span> ${l.room}: ${esc(l.course)}</li>`).join(""));
+}
+
+function checks(){
+  const out = [];
+  if (!clashes.length) out.push(["ok","Nessuna sovrapposizione di aule o docenti."]);
+  for (const c of clashes) out.push(["warn",`${DAYS[c.a.day].long}: ${c.why} — ${c.a.course} / ${c.b.course}`]);
+  for (const l of L.filter(l => !l.start || !l.end))
+    out.push(["warn",`${DAYS[l.day].long}, ${l.room}: "${l.course}" senza ${l.start ? "ora di fine" : "orario"}.`]);
+  const noRoom = L.filter(l => l.room === "DA DEFINIRE");
+  if (noRoom.length) out.push(["warn",`${noRoom.length} lezioni senza aula: scrivere "Aula: NOME" nella descrizione della sessione (es. ${noRoom.slice(0,2).map(l=>l.course).join(", ")}).`]);
+  const noProf = L.filter(l => !l.prof && l.cat !== "ws");
+  if (noProf.length) out.push(["warn",`${noProf.length} lezioni senza docente indicato (es. ${noProf.slice(0,2).map(l=>l.course).join(", ")}).`]);
+  put($("#checks"), out.map(([k,t]) => `<li><span class="dot ${k}"></span><span>${esc(t)}</span></li>`).join(""));
+}
+
+function whatsapp(){
+  const days = state.day < 0 ? DAYS.map((_,i)=>i) : [state.day];
+  const title = { staff:`Lezioni · ${DATA.campus}`, prof:`Prof. ${state.who}, le sue lezioni · ${DATA.campus}`, student:"" }[state.role];
+  const lines = [`*${title}*`, `_${DATA.week}_`, ""];
+  for (const i of days) {
+    const items = mine().filter(l => l.day === i && l.start && matches(l)).sort((a,b)=>mins(a.start)-mins(b.start) || a.room.localeCompare(b.room));
+    if (!items.length) continue;
+    lines.push(`*${DAYS[i].long}*`);
+    for (const l of items) {
+      const extra = state.role === "staff" ? [l.prof, l.students && `${l.students} stud`, l.remote]
+        : state.role === "prof" ? [l.students && `${l.students} stud`, l.remote] : [l.prof && `Prof. ${l.prof}`];
+      const e = extra.filter(Boolean).join(", ");
+      lines.push(`• ${l.start}–${l.end ?? "?"} ${l.course} — ${l.room === "ONLINE" ? "online" : "aula " + l.room}${e ? ` (${e})` : ""}`);
+    }
+    if (state.role === "staff") for (const n of DAY_NOTES.filter(n=>n.day===i)) lines.push(`_Nota: ${n.text}_`);
+    lines.push("");
+  }
+  if (lines.length === 3) lines.push("Nessuna lezione in questo periodo.");
+  $("#wa").value = lines.join("\n").trim();
+  $("#wa-note").textContent = { staff:"Per il gruppo della sede. Scegli un giorno per mandare solo quello.",
+    prof:"Pronto da mandare al docente: solo le sue lezioni.", student:"Quello che riceverebbe lo studente: solo i suoi corsi." }[state.role];
+}
+
+function roleControls(){
+  put($("#role"), [["staff","Segreteria"],["prof","Docente"]]
+    .map(([k,v]) => `<button type="button" data-r="${k}">${v}</button>`).join(""));
+  $("#role").addEventListener("click", e => {
+    const b = e.target.closest("button"); if (!b) return;
+    state.role = b.dataset.r;
+    state.who = state.role === "prof" ? PROFS[0] ?? "" : "";
+    render();
+  });
+  $("#who").addEventListener("change", e => { state.who = e.target.value; render(); });
+}
+
+function controls(){
+  roleControls();
+  put($("#days"), [`<button type="button" data-d="-1">Settimana</button>`]
+    .concat(DAYS.map((d,i) => `<button type="button" data-d="${i}">${d.short}</button>`)).join(""));
+  $("#days").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; state.day = Number(b.dataset.d); render(); });
+  $("#q").addEventListener("input", e => { state.q = e.target.value.trim(); render(); });
+  put($("#legend"), Object.entries(CATS).map(([k,v]) => `<span class="chip cat-${k}">${esc(v)}</span>`).join(""));
+  put($("#f-day"), DAYS.map((d,i) => `<option value="${i}">${esc(d.long)}</option>`).join(""));
+  $("#f-day").value = "0";
+  ["#f-day","#f-from","#f-to"].forEach(s => $(s).addEventListener("input", freeRooms));
+  $("#copy").addEventListener("click", async () => {
+    const ta = $("#wa");
+    try { await navigator.clipboard.writeText(ta.value); $("#copied").textContent = "Copiato."; }
+    catch { ta.focus(); ta.select(); $("#copied").textContent = "Testo selezionato: premi Cmd/Ctrl+C."; }
+  });
+}
+
+function render(){
+  document.querySelectorAll("#role button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.r === state.role)));
+  document.querySelectorAll("#days button").forEach(b => b.setAttribute("aria-pressed", String(Number(b.dataset.d) === state.day)));
+  const who = $("#who");
+  who.hidden = state.role === "staff";
+  if (state.role !== "staff") {
+    const opts = state.role === "prof" ? PROFS : Object.keys(STUDENTS);
+    put(who, opts.map(o => `<option${o === state.who ? " selected" : ""}>${esc(o)}</option>`).join(""));
+  }
+  const staff = state.role === "staff";
+  $("#p-free").hidden = !staff; $("#p-checks").hidden = !staff; $("#legend").hidden = !staff;
+  header(); facts();
+  const idx = state.day < 0 ? DAYS.map((_,i)=>i) : [state.day];
+  const html = idx.map(staff ? staffDay : personalDay).join("");
+  put($("#days-out"), html || `<p class="note">Nessuna lezione in questo periodo.</p>`);
+  whatsapp();
+}
+
+controls(); checks(); freeRooms(); render();
+</script>
+</body>
+</html>

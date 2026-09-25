@@ -1,6 +1,6 @@
 {
   "name": "mcp-moodle-teacher",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "MCP server for the teacher's half of Moodle: enrolments, submissions, what is missing, grading with feedback, announcements",
   "license": "MIT",
   "author": "Niccolo Salvini",
@@ -30,7 +30,7 @@
     "node": ">=18"
   },
   "scripts": {
-    "build": "esbuild src/index.ts --bundle --platform=node --target=node18 --format=esm --outfile=dist/index.js --banner:js=\"import{createRequire}from'module';const require=createRequire(import.meta.url);\"",
+    "build": "esbuild src/index.ts --bundle --platform=node --target=node18 --format=esm --outfile=dist/index.js --loader:.html=text --banner:js=\"import{createRequire}from'module';const require=createRequire(import.meta.url);\"",
     "typecheck": "tsc --noEmit",
     "bundle": "npm run build && mcpb pack . dist/mcp-moodle-teacher.mcpb",
     "prepare": "npm run build"

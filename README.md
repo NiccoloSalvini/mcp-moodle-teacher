@@ -6,7 +6,7 @@ you ask for it, a mark with written feedback, or an announcement to the class.
 
 The Moodle MCP servers published so far are written from the student's seat:
 *my* courses, *my* grades, *my* deadlines. This one is for the person marking the
-work. Nineteen tools, read-first, with the writing tools marked as such.
+work. Twenty tools and three ready-made requests, read-first, with the writing tools marked as such.
 
 Tested against Moodle 4.5 with the standard `moodle_mobile_app` web service.
 
@@ -32,6 +32,18 @@ Tested against Moodle 4.5 with the standard `moodle_mobile_app` web service.
 | `announcements` | recent posts in the course news forum |
 | `attendance_sessions` | the sessions of each attendance register: date, duration, whether taken |
 | `attendance_report` | presences and absences per student, excused apart, with an optional absence limit |
+
+**The week's timetable** — `timetable` reads every lesson of a campus for one
+week (lessons are attendance sessions, which Moodle shows as calendar events),
+with lecturers and number of students from the enrolments and the room from the
+session description (`Aula: DREAM`). It reports room clashes, a lecturer in two
+places and lessons with no room, writes the week as a WhatsApp message, and can
+save it as a web page: a timeline per room, each lecturer's own view, free rooms.
+
+**Ready-made requests** — in Claude Desktop they appear in the menu, so nobody
+has to write a prompt: *Orario della settimana*, *Carica i voti dei professori*,
+*Controllo presenze del venerdì* (in Italian, for the academic office in Florence;
+see [the guide](docs/guida-segreteria.md)).
 
 **Lecturers' grade files** — for the academic office that enters marks sent in
 by lecturers as spreadsheets (one file per module, a matriculation number and a

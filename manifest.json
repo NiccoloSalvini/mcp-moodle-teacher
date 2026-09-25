@@ -2,9 +2,9 @@
   "manifest_version": "0.3",
   "name": "moodle-teacher",
   "display_name": "Moodle (teacher)",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "The teacher's and the academic office's half of Moodle: enrolments, submissions, attendance, lecturers' grade files checked and turned into gradebook imports.",
-  "long_description": "Connects your Moodle to Claude from the staff side rather than the student's. Reading: enrolments, course contents, assignments, submissions, the gradebook, attendance registers with absences per student. Lecturers' grade spreadsheets: checked against Moodle (right course, enrolled students, marks that are really numbers) and turned into CSV files for Moodle's gradebook import. Writing, always after you confirm: a mark with feedback on a submission, an announcement, an attendance status. Needs a Moodle web-service token (Preferences > Security keys, or from your Moodle administrator).",
+  "long_description": "Connects your Moodle to Claude from the staff side rather than the student's. Reading: enrolments, course contents, assignments, submissions, the gradebook, attendance registers with absences per student. Lecturers' grade spreadsheets: checked against Moodle (right course, enrolled students, marks that are really numbers) and turned into CSV files for Moodle's gradebook import. Writing, always after you confirm: a mark with feedback on a submission, an announcement, an attendance status. Needs a Moodle web-service token (Preferences > Security keys, or from your Moodle administrator). Three ready-made requests for the academic office appear in the menu: Orario della settimana, Carica i voti dei professori, Controllo presenze del venerdì.",
   "author": {
     "name": "Niccolo Salvini",
     "url": "https://github.com/NiccoloSalvini"
@@ -140,6 +140,10 @@
     {
       "name": "grades_verify",
       "description": "Double-checks the gradebook against the lecturers' files"
+    },
+    {
+      "name": "timetable",
+      "description": "The week's lessons across a campus: rooms, lecturers, students, clashes, WhatsApp text, web page"
     }
   ]
 }
