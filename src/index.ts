@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Teacher-side MCP server for Moodle.
+ * Staff-side MCP server for Moodle: lecturers and the academic office.
  *
  * The Moodle MCP servers published so far are written from the student's seat:
  * my courses, my grades, my deadlines. A tutor needs the other half of the API —
@@ -20,15 +20,16 @@ import { homedir } from "node:os";
 import { basename, isAbsolute, join as joinPath } from "node:path";
 
 import PAGE from "./timetable-page.html";
+import { aggregateRisk, hoursLate, registerState, type Signal } from "./oversight.js";
 import { dayLabel, findClashes, mins, mondayOf, romeMidnight, romeParts, roomFrom, whatsapp, type Lesson } from "./timetable.js";
 import { assessmentOf, gradeFiles, moduleKey, readGradeFile, type FileName } from "./grades.js";
 import { Moodle, MoodleError, plain, when } from "./moodle.js";
 
 const server = new McpServer(
-  { name: "moodle-teacher", version: "0.3.0" },
+  { name: "moodle-staff", version: "0.4.0" },
   {
     instructions:
-      "Teacher-side Moodle. The read tools answer: who is enrolled, who submitted, " +
+      "Staff-side Moodle, for lecturers and the academic office. The read tools answer: who is enrolled, who submitted, " +
       "what did they hand in, what is still missing, who has been absent. grade_submission, " +
       "announce and mark_attendance " +
       "write to Moodle and are immediately visible to students, so confirm the content " +
@@ -42,6 +43,13 @@ const server = new McpServer(
 let client: Moodle | null = null;
 const moodle = () => (client ??= new Moodle());
 
+// The academic office's tools work across every course of a campus. A lecturer
+// who installs the extension for their own courses can hide them.
+const STAFF_ONLY = new Set([
+  "grades_check", "grades_csv", "grades_verify", "late_registers", "students_at_risk",
+]);
+const staffTools = !/^(false|0|no)$/i.test(process.env.MOODLE_STAFF_TOOLS ?? "true");
+
 /** Every tool returns JSON as text; errors come back readable, not as a stack. */
 function tool(
   name: string,
@@ -49,6 +57,7 @@ function tool(
   schema: z.ZodRawShape,
   handler: (args: any) => Promise<unknown>,
 ) {
+  if (STAFF_ONLY.has(name) && !staffTools) return;
   server.registerTool(name, { description, inputSchema: schema }, async (args: any) => {
     try {
       const result = await handler(args);
@@ -479,28 +488,13 @@ tool(
   },
 );
 
-tool(
-  "attendance_report",
-  "Presences and absences per student across every session already taken: a count for " +
-    "each status (present, late, excused, absent, as the register names them), the list " +
-    "of dates missed, and a flag for whoever has reached the absence limit. Sessions not " +
-    "yet taken are ignored. Excused absences are counted apart from unexcused ones.",
-  {
-    courseid: z.number().int().describe("Course id from my_courses"),
-    max_absences: z
-      .number()
-      .int()
-      .default(0)
-      .describe("Flag students with at least this many absences (excused + unexcused); 0 = no flag"),
-    absent: z.array(z.string()).default(["A"]).describe("Status acronyms that mean an unexcused absence"),
-    excused: z.array(z.string()).default(["E"]).describe("Status acronyms that mean an excused absence"),
-    lates_per_absence: z
-      .number()
-      .int()
-      .default(0)
-      .describe("If > 0, every N late arrivals count as one extra absence (ESE: 3)"),
-  },
-  async ({ courseid, max_absences, absent, excused, lates_per_absence }) => {
+/** Absences per student in one course, across every register session already taken. */
+async function attendanceByStudent(
+  courseid: number,
+  absent: string[] = ["A"],
+  excused: string[] = ["E"],
+  lates_per_absence = 0,
+) {
     const people = (await enrolled(courseid)).filter((p) => p.roles.includes("student"));
     const activities = await attendanceActivities(courseid);
     const upper = (xs: string[]) => new Set(xs.map((x) => x.toUpperCase()));
@@ -572,15 +566,44 @@ tool(
           from_late_arrivals: fromLates,
           total,
         },
-        at_limit: max_absences > 0 && total >= max_absences,
       };
     });
 
     return {
       registers: activities.map((a) => a.name),
-      sessions_taken: taken,
-      max_absences: max_absences || null,
+      taken,
       students: students.sort((a, b) => b.absences.total - a.absences.total || a.name.localeCompare(b.name)),
+    };
+}
+
+tool(
+  "attendance_report",
+  "Presences and absences per student across every session already taken: a count for " +
+    "each status (present, late, excused, absent, as the register names them), the list " +
+    "of dates missed, and a flag for whoever has reached the absence limit. Sessions not " +
+    "yet taken are ignored. Excused absences are counted apart from unexcused ones.",
+  {
+    courseid: z.number().int().describe("Course id from my_courses"),
+    max_absences: z
+      .number()
+      .int()
+      .default(0)
+      .describe("Flag students with at least this many absences (excused + unexcused); 0 = no flag"),
+    absent: z.array(z.string()).default(["A"]).describe("Status acronyms that mean an unexcused absence"),
+    excused: z.array(z.string()).default(["E"]).describe("Status acronyms that mean an excused absence"),
+    lates_per_absence: z
+      .number()
+      .int()
+      .default(0)
+      .describe("If > 0, every N late arrivals count as one extra absence (ESE: 3)"),
+  },
+  async ({ courseid, max_absences, absent, excused, lates_per_absence }) => {
+    const r = await attendanceByStudent(courseid, absent, excused, lates_per_absence);
+    return {
+      registers: r.registers,
+      sessions_taken: r.taken,
+      max_absences: max_absences || null,
+      students: r.students.map((st) => ({ ...st, at_limit: max_absences > 0 && st.absences.total >= max_absences })),
     };
   },
 );
@@ -1080,6 +1103,172 @@ tool(
   },
 );
 
+// --------------------------------------------------------------- oversight
+//
+// What no lecturer sees from inside one course: registers left untaken past the
+// 24 hours the syllabus allows, and students in trouble in several courses.
+
+const coursesMatching = async (search: string) => {
+  const found = await moodle().call<any>("core_course_search_courses", {
+    criterianame: "search", criteriavalue: search, perpage: 500,
+  });
+  return (found.courses ?? []).map((c: any) => ({
+    id: Number(c.id), shortname: String(c.shortname), name: plain(c.fullname).replace(/^[A-Z]{2,4}\d{2,4}\s+/, ""),
+  }));
+};
+
+const lecturersOf = async (courseid: number) =>
+  (await enrolled(courseid))
+    .filter((p) => p.roles.some((r: string) => /teacher|lecturer|docente|tutor/i.test(r)))
+    .map((p) => ({ name: p.name, email: p.email }));
+
+tool(
+  "late_registers",
+  "Attendance registers not taken within the hours the rules allow (ESE: 24 hours from " +
+    "the end of the lesson), across every course that matches, grouped by lecturer: " +
+    "overdue (still not taken), taken late, and pending (lesson over, still in time). " +
+    "Needs the mod_attendance_* functions in the token's service.",
+  {
+    search: z.string().default("_FL").describe('Which courses: text in their short name, e.g. "262701_FL"'),
+    days: z.number().int().default(14).describe("How many days back to look"),
+    hours: z.number().int().default(24).describe("Hours allowed after the lesson ends"),
+  },
+  async ({ search, days, hours }) => {
+    const now = Math.floor(Date.now() / 1000);
+    const since = now - days * 86400;
+    const byLecturer = new Map<string, { email: string; overdue: any[]; taken_late: any[]; pending: any[] }>();
+    let sessions = 0;
+    for (const course of await coursesMatching(search)) {
+      const activities = await attendanceActivities(course.id);
+      if (!activities.length) continue;
+      const lecturers = await lecturersOf(course.id);
+      for (const a of activities) {
+        for (const ses of await attendanceSessions(a.attendanceid)) {
+          if (ses.sessdate < since) continue;
+          const state = registerState(ses, now, hours);
+          if (state === "future") continue;
+          sessions += 1;
+          if (state === "on_time") continue;
+          const row = {
+            course: course.name, shortname: course.shortname, lesson: when(ses.sessdate),
+            hours_late: hoursLate(ses, now, hours),
+          };
+          for (const l of lecturers.length ? lecturers : [{ name: "(nessun docente iscritto)", email: "" }]) {
+            const entry = byLecturer.get(l.name) ?? { email: l.email, overdue: [], taken_late: [], pending: [] };
+            (state === "overdue" ? entry.overdue : state === "taken_late" ? entry.taken_late : entry.pending).push(row);
+            byLecturer.set(l.name, entry);
+          }
+        }
+      }
+    }
+    const lecturers = [...byLecturer].map(([name, e]) => ({ lecturer: name, ...e }))
+      .sort((a, b) => b.overdue.length - a.overdue.length || b.taken_late.length - a.taken_late.length);
+    return {
+      looked_back_days: days,
+      rule_hours: hours,
+      lessons_checked: sessions,
+      overdue_total: lecturers.reduce((n, l) => n + l.overdue.length, 0),
+      lecturers,
+    };
+  },
+);
+
+tool(
+  "students_at_risk",
+  "One list per student across every course that matches: absences at or over the " +
+    "limit, assignments past their due date and not handed in, and failing marks (below " +
+    "the pass mark, on assignments and on gradebook items such as Final). A student with " +
+    "trouble in two or more courses, or of two kinds, ranks first. Each source says " +
+    "whether it could be read: a lecturer's token usually cannot read the gradebook, and " +
+    "attendance needs the mod_attendance_* functions.",
+  {
+    search: z.string().default("_FL").describe('Which courses: text in their short name, e.g. "262701_FL"'),
+    max_absences: z.number().int().default(2).describe("Absences (excused + unexcused) that count as a signal"),
+    pass_mark: z.number().default(40).describe("Marks below this, out of 100, count as failing (ESE: 40)"),
+    lates_per_absence: z.number().int().default(3).describe("Late arrivals that make one absence (ESE: 3)"),
+  },
+  async ({ search, max_absences, pass_mark, lates_per_absence }) => {
+    const now = Math.floor(Date.now() / 1000);
+    const signals: Parameters<typeof aggregateRisk>[0] = [];
+    const sources = { attendance: 0, assignments: 0, gradebook: 0, courses: 0 };
+    const unreadable = new Set<string>();
+
+    for (const course of await coursesMatching(search)) {
+      sources.courses += 1;
+      const people = (await enrolled(course.id)).filter((p) => p.roles.includes("student"));
+      const who = new Map(people.map((p) => [p.userid, p]));
+      const push = (userid: number, signal: Signal) => {
+        const p = who.get(userid);
+        if (p) signals.push({ userid, name: p.name, matriculation: String(p.idnumber || ""), email: p.email, signal });
+      };
+
+      try {
+        const att = await attendanceByStudent(course.id, ["A"], ["E"], lates_per_absence);
+        if (att.taken) sources.attendance += 1;
+        for (const st of att.students) {
+          if (st.absences.total >= max_absences) {
+            push(st.userid, { kind: "absences", course: course.name, total: st.absences.total, unexcused: st.absences.unexcused, excused: st.absences.excused });
+          }
+        }
+      } catch (error) {
+        if (error instanceof MoodleError) unreadable.add("attendance"); else throw error;
+      }
+
+      try {
+        const data = await moodle().call<any>("mod_assign_get_assignments", { courseids: [course.id] });
+        const due = (data.courses?.[0]?.assignments ?? []).filter((a: any) => a.duedate && a.duedate < now);
+        if (due.length) sources.assignments += 1;
+        const missingBy = new Map<number, string[]>();
+        for (const a of due) {
+          const rows = await submissionRows(a.id);
+          const handedIn = new Set(rows.filter((r: any) => r.status === "submitted").map((r: any) => r.userid));
+          for (const p of people) {
+            if (!handedIn.has(p.userid)) missingBy.set(p.userid, [...(missingBy.get(p.userid) ?? []), plain(a.name)]);
+          }
+          const grades = await moodle().call<any>("mod_assign_get_grades", { assignmentids: [a.id] });
+          for (const g of grades.assignments?.[0]?.grades ?? []) {
+            const mark = Number(g.grade);
+            const pct = a.grade > 0 ? (mark / a.grade) * 100 : mark;
+            if (mark >= 0 && pct < pass_mark) push(g.userid, { kind: "fail", course: course.name, item: plain(a.name), mark: Math.round(pct * 10) / 10 });
+          }
+        }
+        for (const [userid, list] of missingBy) push(userid, { kind: "missing", course: course.name, assignments: list });
+      } catch (error) {
+        if (error instanceof MoodleError) unreadable.add("assignments"); else throw error;
+      }
+
+      try {
+        const report = await moodle().call<any>("gradereport_user_get_grade_items", { courseid: course.id });
+        sources.gradebook += 1;
+        for (const u of report.usergrades ?? []) {
+          for (const g of u.gradeitems ?? []) {
+            if (g.itemtype === "course" || g.itemtype === "category" || g.itemmodule === "assign") continue;
+            if (g.graderaw === null || g.graderaw === undefined || !(g.grademax > 0)) continue;
+            const pct = (Number(g.graderaw) / Number(g.grademax)) * 100;
+            if (pct < pass_mark) push(u.userid, { kind: "fail", course: course.name, item: plain(g.itemname), mark: Math.round(pct * 10) / 10 });
+          }
+        }
+      } catch (error) {
+        if (error instanceof MoodleError) unreadable.add("gradebook"); else throw error;
+      }
+    }
+
+    const students = aggregateRisk(signals);
+    return {
+      courses: sources.courses,
+      read: {
+        attendance: unreadable.has("attendance") ? "not readable with this token (needs mod_attendance_* functions)" : `${sources.attendance} courses with registers taken`,
+        assignments: unreadable.has("assignments") ? "not readable" : `${sources.assignments} courses with past deadlines`,
+        gradebook: unreadable.has("gradebook") ? "not readable with this token (the academic office's can)" : `${sources.gradebook} courses`,
+      },
+      rules: { max_absences, pass_mark, lates_per_absence },
+      high: students.filter((s) => s.level === "alto").length,
+      medium: students.filter((s) => s.level === "medio").length,
+      students,
+    };
+  },
+);
+
 // ------------------------------------------------------------------ prompts
 //
 // Ready-made requests the academic office picks from the app's menu instead of
@@ -1111,7 +1300,7 @@ server.registerPrompt(
   }),
 );
 
-server.registerPrompt(
+if (staffTools) server.registerPrompt(
   "carica_voti",
   {
     title: "Carica i voti dei professori",
@@ -1135,7 +1324,7 @@ server.registerPrompt(
   }),
 );
 
-server.registerPrompt(
+if (staffTools) server.registerPrompt(
   "controllo_presenze",
   {
     title: "Controllo presenze del venerdì",
@@ -1158,6 +1347,52 @@ server.registerPrompt(
     }],
   }),
 );
+
+if (staffTools) {
+  server.registerPrompt(
+    "registri_in_ritardo",
+    {
+      title: "Registri presenze in ritardo",
+      description: "Docenti che non hanno fatto l'appello su Moodle entro 24 ore dalla lezione, con bozza di sollecito",
+      argsSchema: { giorni: z.string().optional().describe("Quanti giorni indietro guardare (predefinito 14)") },
+    },
+    ({ giorni }) => ({
+      messages: [{
+        role: "user",
+        content: {
+          type: "text",
+          text:
+            `Controlla i registri presenze della sede di Firenze degli ultimi ${giorni || "14"} giorni con late_registers (search "_FL"). ` +
+            "La regola del syllabus ESE è: appello su Moodle entro 24 ore dalla lezione. Dimmi: 1) quali docenti hanno ancora registri non compilati, " +
+            "con corso e data di ogni lezione, 2) chi li ha compilati in ritardo, 3) per ogni docente con registri mancanti una breve mail di sollecito, " +
+            "cortese e concreta (quali lezioni, entro quando), in inglese se il docente non è italiano. Non inviare nulla. " + STYLE,
+        },
+      }],
+    }),
+  );
+
+  server.registerPrompt(
+    "studenti_a_rischio",
+    {
+      title: "Studenti a rischio",
+      description: "Studenti in difficoltà su più corsi: assenze, consegne mancanti, voti insufficienti",
+    },
+    () => ({
+      messages: [{
+        role: "user",
+        content: {
+          type: "text",
+          text:
+            'Usa students_at_risk (search "_FL") e fammi il quadro degli studenti a rischio della sede di Firenze. ' +
+            "Prima quelli a rischio alto (problemi in più corsi e di più tipi), poi medio. Per ciascuno: nome, matricola, e in una riga cosa succede " +
+            "corso per corso (assenze, consegne mancanti, voti sotto la sufficienza). Dimmi anche quali dati non è stato possibile leggere, " +
+            "così so se il quadro è completo. Alla fine proponimi, per i casi alti, una bozza di mail allo studente per fissare un colloquio, " +
+            "dal tono attento e non punitivo. Non inviare nulla. " + STYLE,
+        },
+      }],
+    }),
+  );
+}
 
 const transport = new StdioServerTransport();
 await server.connect(transport);

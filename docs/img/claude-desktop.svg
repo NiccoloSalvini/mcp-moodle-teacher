@@ -29,7 +29,7 @@
   <rect x="246" y="176" width="600" height="212" rx="5" fill="#ffffff" stroke="#e6e2d8"/>
   <rect x="266" y="194" width="34" height="34" rx="5" fill="#AF1F25"/>
   <path d="M271 212 l12 -7 l12 7 l-12 7 z" fill="#ffffff"/>
-  <text x="312" y="208" font-size="14" font-weight="700" fill="#363636">Moodle (teacher)</text>
+  <text x="312" y="208" font-size="14" font-weight="700" fill="#363636">Moodle (staff)</text>
   <text x="312" y="226" font-size="11" fill="#7a7f85">13 tools · enrolments, submissions, marking, announcements</text>
   <rect x="772" y="196" width="56" height="24" rx="12" fill="#e8f3ea"/>
   <text x="800" y="212" font-size="11" font-weight="600" fill="#1E8449" text-anchor="middle">On</text>

@@ -1,11 +1,11 @@
 # Moodle con Claude — guida per la segreteria
 
 Una pagina, niente di tecnico. Serve l'app **Claude Desktop** con l'estensione
-*Moodle (teacher)* installata e il proprio token Moodle inserito.
+*Moodle (staff)* installata e il proprio token Moodle inserito.
 
 ## Installazione (una volta sola)
 
-1. Scaricare `mcp-moodle-teacher.mcpb` dall'[ultima versione](https://github.com/NiccoloSalvini/mcp-moodle-teacher/releases/latest).
+1. Scaricare `mcp-moodle-staff.mcpb` dall'[ultima versione](https://github.com/NiccoloSalvini/mcp-moodle-staff/releases/latest).
 2. Aprire Claude Desktop ▸ **Impostazioni ▸ Estensioni ▸ Installa estensione…** e scegliere il file.
 3. Compilare le due caselle:
    - **indirizzo**: `https://esestudents.com/webservice/rest/server.php`
@@ -20,6 +20,8 @@ Nella chat, dal pulsante **+** (o dal menu dei comandi), scegliere:
 | **Orario della settimana** | tutte le lezioni della sede con aula, docente e numero di studenti; segnala sovrapposizioni e lezioni senza aula; prepara il messaggio WhatsApp e salva la pagina dell'orario sulla Scrivania |
 | **Carica i voti dei professori** | controlla la cartella con gli Excel dei professori, dice cosa non torna, prepara i file da importare su Moodle e le mail ai professori per le righe da chiarire |
 | **Controllo presenze del venerdì** | assenze della settimana corso per corso, registri non compilati, studenti che hanno raggiunto la soglia, bozze delle mail di avviso (mai inviate da sole) |
+| **Registri presenze in ritardo** | docenti che non hanno fatto l'appello su Moodle entro 24 ore dalla lezione, con una bozza di sollecito per ciascuno |
+| **Studenti a rischio** | gli studenti in difficoltà su più corsi insieme (assenze, consegne mancanti, voti insufficienti), prima i casi più seri, con una bozza di mail per un colloquio |
 
 ## Si può anche chiedere a parole
 

@@ -1,20 +1,20 @@
 {
   "manifest_version": "0.3",
-  "name": "moodle-teacher",
-  "display_name": "Moodle (teacher)",
-  "version": "0.3.0",
-  "description": "The teacher's and the academic office's half of Moodle: enrolments, submissions, attendance, lecturers' grade files checked and turned into gradebook imports.",
-  "long_description": "Connects your Moodle to Claude from the staff side rather than the student's. Reading: enrolments, course contents, assignments, submissions, the gradebook, attendance registers with absences per student. Lecturers' grade spreadsheets: checked against Moodle (right course, enrolled students, marks that are really numbers) and turned into CSV files for Moodle's gradebook import. Writing, always after you confirm: a mark with feedback on a submission, an announcement, an attendance status. Needs a Moodle web-service token (Preferences > Security keys, or from your Moodle administrator). Three ready-made requests for the academic office appear in the menu: Orario della settimana, Carica i voti dei professori, Controllo presenze del venerdì.",
+  "name": "moodle-staff",
+  "display_name": "Moodle (staff)",
+  "version": "0.4.0",
+  "description": "The staff side of Moodle, for lecturers and the academic office: enrolments, submissions, attendance, late registers, students at risk, the week's rooms, lecturers' grade files.",
+  "long_description": "Connects your Moodle to Claude from the staff side rather than the student's. Reading: enrolments, course contents, assignments, submissions, the gradebook, attendance registers with absences per student. Lecturers' grade spreadsheets: checked against Moodle (right course, enrolled students, marks that are really numbers) and turned into CSV files for Moodle's gradebook import. Writing, always after you confirm: a mark with feedback on a submission, an announcement, an attendance status. Needs a Moodle web-service token (Preferences > Security keys, or from your Moodle administrator). Three ready-made requests for the academic office appear in the menu: Orario della settimana, Carica i voti dei professori, Controllo presenze del venerdì, Registri presenze in ritardo, Studenti a rischio.",
   "author": {
     "name": "Niccolo Salvini",
     "url": "https://github.com/NiccoloSalvini"
   },
-  "homepage": "https://github.com/NiccoloSalvini/mcp-moodle-teacher",
-  "documentation": "https://github.com/NiccoloSalvini/mcp-moodle-teacher#readme",
-  "support": "https://github.com/NiccoloSalvini/mcp-moodle-teacher/issues",
+  "homepage": "https://github.com/NiccoloSalvini/mcp-moodle-staff",
+  "documentation": "https://github.com/NiccoloSalvini/mcp-moodle-staff#readme",
+  "support": "https://github.com/NiccoloSalvini/mcp-moodle-staff/issues",
   "repository": {
     "type": "git",
-    "url": "https://github.com/NiccoloSalvini/mcp-moodle-teacher"
+    "url": "https://github.com/NiccoloSalvini/mcp-moodle-staff"
   },
   "license": "MIT",
   "icon": "icon.png",
@@ -35,7 +35,8 @@
       ],
       "env": {
         "MOODLE_URL": "${user_config.moodle_url}",
-        "MOODLE_TOKEN": "${user_config.moodle_token}"
+        "MOODLE_TOKEN": "${user_config.moodle_token}",
+        "MOODLE_STAFF_TOOLS": "${user_config.staff_tools}"
       }
     }
   },
@@ -52,6 +53,13 @@
       "description": "From your Moodle: Preferences > Security keys > Moodle mobile web service. If that page is empty, ask your Moodle administrator for a token.",
       "required": true,
       "sensitive": true
+    },
+    "staff_tools": {
+      "type": "boolean",
+      "title": "Staff tools (academic office)",
+      "description": "Grade files, late registers, students at risk across every course. Untick if you only need your own courses as a lecturer.",
+      "default": true,
+      "required": false
     }
   },
   "compatibility": {
@@ -144,6 +152,14 @@
     {
       "name": "timetable",
       "description": "The week's lessons across a campus: rooms, lecturers, students, clashes, WhatsApp text, web page"
+    },
+    {
+      "name": "late_registers",
+      "description": "Registers not taken within 24 hours, by lecturer"
+    },
+    {
+      "name": "students_at_risk",
+      "description": "Students in trouble in more than one course"
     }
   ]
 }

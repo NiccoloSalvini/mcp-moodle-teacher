@@ -12,7 +12,7 @@
   <text x="68" y="184" font-size="12" fill="#7a7f85">(or Codex, or Claude Code)</text>
 
   <rect x="262" y="134" width="176" height="76" rx="3" fill="#ffffff" stroke="#AF1F25" stroke-width="1.5"/>
-  <text x="278" y="162" font-size="14" font-weight="600" fill="#AF1F25">moodle-teacher</text>
+  <text x="278" y="162" font-size="14" font-weight="600" fill="#AF1F25">moodle-staff</text>
   <text x="278" y="184" font-size="12" fill="#7a7f85">the extension</text>
 
   <path d="M232 172 L258 172" stroke="#7a7f85" stroke-width="1.5" marker-end="url(#a)"/>

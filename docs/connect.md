@@ -47,8 +47,8 @@ yours with a colleague — each teacher uses their own.
 
 ![The Extensions pane in Claude Desktop](img/claude-desktop.svg)
 
-1. Download `mcp-moodle-teacher.mcpb` from the
-   [latest release](https://github.com/NiccoloSalvini/mcp-moodle-teacher/releases/latest).
+1. Download `mcp-moodle-staff.mcpb` from the
+   [latest release](https://github.com/NiccoloSalvini/mcp-moodle-staff/releases/latest).
 2. Open Claude Desktop → **Settings** → **Extensions**.
 3. **Install Extension…** and choose the file you just downloaded. (Double-clicking
    the file in Finder or Explorer does the same thing.)
@@ -88,7 +88,7 @@ you. This one is unavoidably a terminal step, but it is a single line:
 codex mcp add moodle \
   --env MOODLE_URL=https://moodle.example.edu/webservice/rest/server.php \
   --env MOODLE_TOKEN=paste-your-token-here \
-  -- npx -y github:NiccoloSalvini/mcp-moodle-teacher
+  -- npx -y github:NiccoloSalvini/mcp-moodle-staff
 ```
 
 `codex mcp list` then shows it. The same extension logic applies: the program
@@ -103,7 +103,7 @@ In the folder of the course you are working on, create `.mcp.json`:
   "mcpServers": {
     "moodle": {
       "command": "npx",
-      "args": ["-y", "github:NiccoloSalvini/mcp-moodle-teacher"],
+      "args": ["-y", "github:NiccoloSalvini/mcp-moodle-staff"],
       "env": {
         "MOODLE_URL": "${MOODLE_URL}",
         "MOODLE_TOKEN": "${MOODLE_TOKEN}"

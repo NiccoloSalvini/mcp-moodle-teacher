@@ -1,12 +1,15 @@
-# mcp-moodle-teacher
+# mcp-moodle-staff
 
-An MCP server that gives an AI assistant the teacher's half of Moodle: who is
-enrolled, who submitted, what they handed in, what is still missing — and, when
-you ask for it, a mark with written feedback, or an announcement to the class.
+An MCP server that gives an AI assistant the staff side of Moodle — for the
+lecturer marking their own course and for the academic office running a whole
+campus: who is enrolled, who submitted, who has been absent, which registers are
+late, which students are struggling in more than one course, the week's rooms,
+and the lecturers' grade files turned into gradebook imports.
 
 The Moodle MCP servers published so far are written from the student's seat:
-*my* courses, *my* grades, *my* deadlines. This one is for the person marking the
-work. Twenty tools and three ready-made requests, read-first, with the writing tools marked as such.
+*my* courses, *my* grades, *my* deadlines. This one is for the people on the
+other side of the desk. Read-first; every tool that changes Moodle says so and
+asks for confirmation.
 
 Tested against Moodle 4.5 with the standard `moodle_mobile_app` web service.
 
@@ -42,8 +45,15 @@ save it as a web page: a timeline per room, each lecturer's own view, free rooms
 
 **Ready-made requests** — in Claude Desktop they appear in the menu, so nobody
 has to write a prompt: *Orario della settimana*, *Carica i voti dei professori*,
-*Controllo presenze del venerdì* (in Italian, for the academic office in Florence;
+*Controllo presenze del venerdì*, *Registri presenze in ritardo*, *Studenti a rischio* (in Italian, for the academic office in Florence;
 see [the guide](docs/guida-segreteria.md)).
+
+**Across courses, for the academic office**
+
+| Tool | Answers |
+|---|---|
+| `late_registers` | registers not taken within 24 hours of the lesson (the ESE rule), grouped by lecturer: overdue, taken late, still in time |
+| `students_at_risk` | one row per student across every course: absences over the limit, assignments not handed in, failing marks; trouble in two courses or of two kinds ranks first |
 
 **Lecturers' grade files** — for the academic office that enters marks sent in
 by lecturers as spreadsheets (one file per module, a matriculation number and a
@@ -74,6 +84,13 @@ The attendance tools need the `mod_attendance_*` functions to be part of your
 token's web service. On many sites they are not: `whoami` says so
 (`can_read_attendance`), and the site administrator can add them.
 
+## Lecturer or academic office
+
+The office's tools (grade files, late registers, students at risk and their
+ready-made requests) are on by default. A lecturer who only needs their own
+courses unticks **Staff tools** in the extension's settings (or sets
+`MOODLE_STAFF_TOOLS=false`) and sees 17 tools instead of 22.
+
 ## What it deliberately does not do
 
 **Upload course materials.** Moodle core has no web service that creates a
@@ -83,8 +100,8 @@ link to them from Moodle.
 
 ## Install
 
-**As a Claude Desktop extension** — download `mcp-moodle-teacher.mcpb` from the
-[latest release](https://github.com/NiccoloSalvini/mcp-moodle-teacher/releases/latest),
+**As a Claude Desktop extension** — download `mcp-moodle-staff.mcpb` from the
+[latest release](https://github.com/NiccoloSalvini/mcp-moodle-staff/releases/latest),
 then Settings ▸ Extensions ▸ Install Extension… and fill in the two boxes.
 Nothing else to install: Claude Desktop runs it. The
 [illustrated walkthrough](docs/connect.md) covers this in full.
@@ -93,14 +110,14 @@ Nothing else to install: Claude Desktop runs it. The
 builds itself on install, so there is nothing to clone:
 
 ```bash
-npx -y github:NiccoloSalvini/mcp-moodle-teacher
+npx -y github:NiccoloSalvini/mcp-moodle-staff
 ```
 
 **From a clone:**
 
 ```bash
 npm install && npm run build     # dist/index.js
-npm run bundle                   # dist/mcp-moodle-teacher.mcpb
+npm run bundle                   # dist/mcp-moodle-staff.mcpb
 ```
 
 ## Get a token
@@ -127,7 +144,7 @@ Use the exact base URL Moodle knows itself by. If you get
   "mcpServers": {
     "moodle": {
       "command": "npx",
-      "args": ["-y", "github:NiccoloSalvini/mcp-moodle-teacher"],
+      "args": ["-y", "github:NiccoloSalvini/mcp-moodle-staff"],
       "env": {
         "MOODLE_URL": "https://moodle.example.edu/webservice/rest/server.php",
         "MOODLE_TOKEN": "${MOODLE_TOKEN}"
@@ -140,7 +157,7 @@ Use the exact base URL Moodle knows itself by. If you get
 For Codex, one line does it:
 
 ```bash
-codex mcp add moodle --env MOODLE_URL=… --env MOODLE_TOKEN=… -- npx -y github:NiccoloSalvini/mcp-moodle-teacher
+codex mcp add moodle --env MOODLE_URL=… --env MOODLE_TOKEN=… -- npx -y github:NiccoloSalvini/mcp-moodle-staff
 ```
 
 Export `MOODLE_TOKEN` in the shell that launches the client (`set -a; . .env; set +a`)
