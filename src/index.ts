@@ -7,7 +7,7 @@
  * who submitted, what did they submit, put a mark and written feedback on it,
  * tell the class something.
  *
- * Reads come first. The two writing tools say so in their description, and the
+ * Reads come first. The writing tools say so in their description, and the
  * server's instructions tell the assistant to confirm before calling them.
  */
 
@@ -15,14 +15,18 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 
+import { basename } from "node:path";
+
+import { assessmentOf, gradeFiles, moduleKey, readGradeFile, type FileName } from "./grades.js";
 import { Moodle, MoodleError, plain, when } from "./moodle.js";
 
 const server = new McpServer(
-  { name: "moodle-teacher", version: "0.1.0" },
+  { name: "moodle-teacher", version: "0.2.0" },
   {
     instructions:
       "Teacher-side Moodle. The read tools answer: who is enrolled, who submitted, " +
-      "what did they hand in, what is still missing. grade_submission and announce " +
+      "what did they hand in, what is still missing, who has been absent. grade_submission, " +
+      "announce and mark_attendance " +
       "write to Moodle and are immediately visible to students, so confirm the content " +
       "with the user before calling them. Call whoami first when something fails: the " +
       "token's permissions, not a bug, decide what is possible. These tools return real " +
@@ -81,6 +85,8 @@ tool(
       can_grade: functions.includes("mod_assign_save_grade"),
       can_post_announcement: functions.includes("mod_forum_add_discussion"),
       can_list_students: functions.includes("core_enrol_get_enrolled_users"),
+      can_read_attendance: functions.includes("mod_attendance_get_sessions"),
+      can_mark_attendance: functions.includes("mod_attendance_update_user_status"),
     };
   },
 );
@@ -125,6 +131,7 @@ const enrolled = async (courseid: number) => {
       userid: u.id,
       name: u.fullname,
       email: u.email,
+      idnumber: u.idnumber ?? "",
       roles: (u.roles ?? []).map((r: any) => r.shortname),
       last_access: when(u.lastaccess),
       city: u.city,
@@ -416,6 +423,521 @@ tool(
       message: plain(d.message).slice(0, 1500),
       pinned: Boolean(d.pinned),
     }));
+  },
+);
+
+// --------------------------------------------------------------- attendance
+//
+// Attendance is a plugin (mod_attendance), not Moodle core. Its web-service
+// functions only reach a token if the administrator has added them to the
+// token's service: on a site where they are missing every call below fails
+// with an access exception, and whoami says so up front.
+
+/** Attendance activities in a course. The WS functions want the instance id, not the cmid. */
+const attendanceActivities = async (courseid: number) => {
+  const sections = await moodle().call<any[]>("core_course_get_contents", { courseid });
+  return sections.flatMap((s) =>
+    (s.modules ?? [])
+      .filter((m: any) => m.modname === "attendance")
+      .map((m: any) => ({ attendanceid: m.instance as number, cmid: m.id, name: plain(m.name) })),
+  );
+};
+
+const attendanceSessions = async (attendanceid: number) =>
+  moodle().call<any[]>("mod_attendance_get_sessions", { attendanceid });
+
+tool(
+  "attendance_sessions",
+  "The sessions of every attendance register in a course: date, duration, whether the " +
+    "register has been taken, and how many students were marked. The sessionid is what " +
+    "mark_attendance expects.",
+  { courseid: z.number().int().describe("Course id from my_courses") },
+  async ({ courseid }) => {
+    const activities = await attendanceActivities(courseid);
+    return Promise.all(
+      activities.map(async (a) => ({
+        ...a,
+        sessions: (await attendanceSessions(a.attendanceid))
+          .sort((x, y) => x.sessdate - y.sessdate)
+          .map((s) => ({
+            sessionid: s.id,
+            date: when(s.sessdate),
+            minutes: Math.round((s.duration ?? 0) / 60),
+            description: plain(s.description).slice(0, 200),
+            taken: Boolean(s.lasttaken),
+            marked: (s.attendance_log ?? []).length,
+            statuses: (s.statuses ?? [])
+              .filter((st: any) => !st.deleted)
+              .map((st: any) => ({ statusid: st.id, acronym: st.acronym, description: st.description })),
+          })),
+      })),
+    );
+  },
+);
+
+tool(
+  "attendance_report",
+  "Presences and absences per student across every session already taken: a count for " +
+    "each status (present, late, excused, absent, as the register names them), the list " +
+    "of dates missed, and a flag for whoever has reached the absence limit. Sessions not " +
+    "yet taken are ignored. Excused absences are counted apart from unexcused ones.",
+  {
+    courseid: z.number().int().describe("Course id from my_courses"),
+    max_absences: z
+      .number()
+      .int()
+      .default(0)
+      .describe("Flag students with at least this many absences (excused + unexcused); 0 = no flag"),
+    absent: z.array(z.string()).default(["A"]).describe("Status acronyms that mean an unexcused absence"),
+    excused: z.array(z.string()).default(["E"]).describe("Status acronyms that mean an excused absence"),
+    lates_per_absence: z
+      .number()
+      .int()
+      .default(0)
+      .describe("If > 0, every N late arrivals count as one extra absence (ESE: 3)"),
+  },
+  async ({ courseid, max_absences, absent, excused, lates_per_absence }) => {
+    const people = (await enrolled(courseid)).filter((p) => p.roles.includes("student"));
+    const activities = await attendanceActivities(courseid);
+    const upper = (xs: string[]) => new Set(xs.map((x) => x.toUpperCase()));
+    const absentSet = upper(absent);
+    const excusedSet = upper(excused);
+
+    type Row = {
+      userid: number;
+      name: string;
+      email: string;
+      counts: Record<string, number>;
+      unexcused_dates: string[];
+      excused_dates: string[];
+      not_marked: string[];
+      lates: number;
+    };
+    const rows = new Map<number, Row>(
+      people.map((p) => [
+        p.userid,
+        {
+          userid: p.userid,
+          name: p.name,
+          email: p.email,
+          counts: {},
+          unexcused_dates: [],
+          excused_dates: [],
+          not_marked: [],
+          lates: 0,
+        },
+      ]),
+    );
+
+    let taken = 0;
+    for (const activity of activities) {
+      for (const session of await attendanceSessions(activity.attendanceid)) {
+        if (!session.lasttaken) continue;
+        taken += 1;
+        const date = when(session.sessdate) ?? "?";
+        const acronym = new Map<number, string>(
+          (session.statuses ?? []).map((st: any) => [st.id, String(st.acronym).toUpperCase()]),
+        );
+        const marks = new Map<number, number>(
+          (session.attendance_log ?? []).map((l: any) => [l.studentid, l.statusid]),
+        );
+        for (const row of rows.values()) {
+          const statusid = marks.get(row.userid);
+          if (statusid === undefined) {
+            row.not_marked.push(date);
+            continue;
+          }
+          const code = acronym.get(statusid) ?? `status ${statusid}`;
+          row.counts[code] = (row.counts[code] ?? 0) + 1;
+          if (absentSet.has(code)) row.unexcused_dates.push(date);
+          else if (excusedSet.has(code)) row.excused_dates.push(date);
+          else if (code === "L") row.lates += 1;
+        }
+      }
+    }
+
+    const students = [...rows.values()].map((row) => {
+      const fromLates = lates_per_absence > 0 ? Math.floor(row.lates / lates_per_absence) : 0;
+      const total = row.unexcused_dates.length + row.excused_dates.length + fromLates;
+      const { lates, ...rest } = row;
+      return {
+        ...rest,
+        absences: {
+          unexcused: row.unexcused_dates.length,
+          excused: row.excused_dates.length,
+          from_late_arrivals: fromLates,
+          total,
+        },
+        at_limit: max_absences > 0 && total >= max_absences,
+      };
+    });
+
+    return {
+      registers: activities.map((a) => a.name),
+      sessions_taken: taken,
+      max_absences: max_absences || null,
+      students: students.sort((a, b) => b.absences.total - a.absences.total || a.name.localeCompare(b.name)),
+    };
+  },
+);
+
+tool(
+  "mark_attendance",
+  "WRITES TO MOODLE, visible to the student in their attendance record. Set one " +
+    "student's status in one session (e.g. turn an absence into excused after a medical " +
+    "certificate). statusid comes from attendance_sessions. Confirm with the user first.",
+  {
+    sessionid: z.number().int().describe("Session id from attendance_sessions"),
+    userid: z.number().int().describe("Student id from students"),
+    statusid: z.number().int().describe("Status id from the same session's statuses"),
+  },
+  async ({ sessionid, userid, statusid }) => {
+    const [info, session] = await Promise.all([
+      siteInfo(),
+      moodle().call<any>("mod_attendance_get_session", { sessionid }),
+    ]);
+    const status = (session.statuses ?? []).find((st: any) => st.id === statusid);
+    if (!status) {
+      throw new MoodleError("badstatus", `Status ${statusid} does not belong to session ${sessionid}`, "mark_attendance");
+    }
+    // update_user_status wants the status set as a comma-separated list of the session's status ids.
+    const statusset = (session.statuses ?? [])
+      .filter((st: any) => st.setnumber === status.setnumber && !st.deleted)
+      .map((st: any) => st.id)
+      .join(",");
+    await moodle().call("mod_attendance_update_user_status", {
+      sessionid,
+      studentid: userid,
+      takenbyid: info.userid,
+      statusid,
+      statusset,
+    });
+    return { ok: true, sessionid, userid, status: status.acronym, date: when(session.sessdate) };
+  },
+);
+
+// -------------------------------------------------------------------- grades
+//
+// The flow at ESE: each lecturer sends a spreadsheet with a matriculation
+// number and a mark per student for each assessment (midterm, final, ...); the
+// academic office enters those marks in Moodle, course by course; from Moodle
+// each student's marking form is then filled in, exported to PDF, printed and
+// stamped. These tools do the Moodle step and its double check.
+//
+// They never compute or change a mark. Everything uncertain — which course,
+// which assignment, whether "57,5" is a mark, whether the student is enrolled —
+// is reported and left out rather than guessed.
+
+const escapeHtml = (s: string) =>
+  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>");
+
+/** The one Moodle course a file name points at, or the reason there is not exactly one. */
+async function courseFor(name: FileName): Promise<{ course?: any; problem?: string }> {
+  if (!name.module) return { problem: "no module code in the file name" };
+  // Moodle searches by substring, and "MBA03" is not inside "MBA003": search every zero padding.
+  const [, letters, digits] = name.module.match(/^([A-Z]+)0*(\d+)$/i) ?? [, name.module, ""];
+  const spellings = new Set([name.module, ...[2, 3, 4].map((n) => `${letters}${digits.padStart(n, "0")}`)]);
+  const byId = new Map<number, any>();
+  for (const spelling of spellings) {
+    const found = await moodle().call<any>("core_course_search_courses", {
+      criterianame: "search",
+      criteriavalue: spelling,
+      perpage: 100,
+    });
+    for (const c of found.courses ?? []) byId.set(c.id, c);
+  }
+  let candidates = [...byId.values()].filter(
+    (c: any) => moduleKey(String(c.shortname).split("_")[0]) === moduleKey(name.module!),
+  );
+  if (name.term) candidates = candidates.filter((c: any) => String(c.shortname).includes(`_${name.term}`));
+  if (candidates.length === 1) return { course: candidates[0] };
+  const which = `module ${name.module}${name.term ? `, term ${name.term}` : ""}`;
+  if (candidates.length === 0) return { problem: `no Moodle course matches ${which}` };
+  return {
+    problem: `${candidates.length} courses match ${which}: ${candidates.map((c: any) => `${c.id} ${c.shortname}`).join(", ")} — pass courseid`,
+  };
+}
+
+type Plan = Awaited<ReturnType<typeof planFile>>;
+
+async function planFile(path: string, courseid?: number, itemOverride: Record<string, string> = {}) {
+  const file = await readGradeFile(path);
+  const problems = [...file.problems];
+  const base = { file: basename(path), sheet: file.sheet, name: file.name };
+
+  let course: any;
+  if (courseid) {
+    const got = await moodle().call<any>("core_course_get_courses_by_field", { field: "id", value: courseid });
+    course = got.courses?.[0];
+    if (!course) problems.push(`course ${courseid} not found`);
+  } else {
+    const r = await courseFor(file.name);
+    course = r.course;
+    if (r.problem) problems.push(r.problem);
+  }
+  if (!course) return { ...base, course: null, items: {}, entries: [], not_in_file: [], problems };
+
+  // Assessment in the file -> grade item in the course's gradebook. ESE courses
+  // carry manual items named "Final", "resit" and "Evaluation / Feedback Final"...
+  const items: { id: number; name: string }[] = (
+    (await moodle().call<any>("core_grades_get_gradeitems", { courseid: course.id })).gradeItems ?? []
+  ).map((g: any) => ({ id: Number(g.id), name: plain(g.itemname) }));
+  const isFeedback = (n: string) => /feedback|evaluation/i.test(n);
+  const mapping: Record<string, { item: string; feedback_item: string | null }> = {};
+  for (const column of file.markColumns.filter((c) => c.assessment)) {
+    const kind = column.assessment!;
+    const forced = itemOverride[kind] ?? itemOverride[column.header];
+    const gradeItems = items.filter((i) => !isFeedback(i.name));
+    const matches = forced
+      ? items.filter((i) => i.name.toLowerCase() === forced.toLowerCase())
+      : gradeItems.filter((i) => assessmentOf(i.name) === kind);
+    if (matches.length !== 1) {
+      problems.push(
+        `column "${column.header}" (${kind}): ${matches.length === 0 ? "no" : matches.length} matching grade item in ${course.shortname}` +
+          ` — items: ${items.map((i) => `"${i.name}"`).join(", ")}; pass items {"${kind}": "<item name>"}`,
+      );
+      continue;
+    }
+    const fb = items.filter((i) => isFeedback(i.name) && assessmentOf(i.name.replace(/evaluation|feedback|\//gi, " ")) === kind);
+    mapping[kind] = { item: matches[0].name, feedback_item: fb.length === 1 ? fb[0].name : null };
+  }
+
+  const people = (await enrolled(course.id)).filter((p) => p.roles.includes("student"));
+  const byMatric = new Map(people.filter((p) => p.idnumber).map((p) => [String(p.idnumber).trim(), p]));
+
+  const count = new Map<string, number>();
+  for (const r of file.rows) if (r.matriculation) count.set(r.matriculation, (count.get(r.matriculation) ?? 0) + 1);
+
+  const entries = [];
+  for (const r of file.rows) {
+    const person = r.matriculation ? byMatric.get(r.matriculation) : undefined;
+    for (const [kind, m] of Object.entries(r.marks)) {
+      const target = mapping[kind];
+      const feedback = r.feedback[kind] ?? "";
+      const reasons: string[] = [];
+      if (!r.matriculation) reasons.push("no matriculation number");
+      else if (!person) reasons.push(`matriculation ${r.matriculation} is not a student enrolled in ${course.shortname}`);
+      if ((count.get(r.matriculation ?? "") ?? 0) > 1) reasons.push("matriculation appears on more than one row");
+      if (m.problem) reasons.push(m.problem);
+      if (!target) reasons.push(`no grade item for ${kind}`);
+      if (feedback && target && !target.feedback_item) reasons.push(`feedback given but no feedback item for ${kind}`);
+      entries.push({
+        row: r.row,
+        matriculation: r.matriculation,
+        name: person?.name ?? null,
+        userid: person?.userid ?? null,
+        assessment: kind,
+        item: target?.item ?? null,
+        feedback_item: target?.feedback_item ?? null,
+        raw: m.raw,
+        mark: m.mark,
+        feedback,
+        status: reasons.length ? "blocked" : "ready",
+        reasons,
+      });
+    }
+  }
+
+  const inFile = new Set(file.rows.map((r) => r.matriculation));
+  const not_in_file = people
+    .filter((p) => !inFile.has(String(p.idnumber ?? "").trim()))
+    .map((p) => ({ matriculation: p.idnumber || null, name: p.name }));
+
+  return {
+    ...base,
+    course: { id: course.id, shortname: course.shortname, fullname: plain(course.fullname) },
+    items: mapping,
+    entries,
+    not_in_file,
+    problems,
+  };
+}
+
+async function plans(path: string, courseid?: number, items?: Record<string, string>) {
+  const files = await gradeFiles(path);
+  if (files.length === 0) throw new Error(`no .xlsx or .csv files in ${path}`);
+  if (courseid && files.length > 1) throw new Error("courseid applies to one file only; pass the file, not the folder");
+  const out: Plan[] = [];
+  for (const f of files) out.push(await planFile(f, courseid, items ?? {}));
+
+  // Two files giving the same student a mark on the same item: the second import
+  // would silently replace the first. Neither goes in until someone decides.
+  const seen = new Map<string, string[]>();
+  for (const p of out) {
+    for (const e of p.entries) {
+      if (!p.course || !e.item || !e.matriculation) continue;
+      const key = `${p.course.id}|${e.item}|${e.matriculation}`;
+      seen.set(key, [...(seen.get(key) ?? []), p.file]);
+    }
+  }
+  for (const p of out) {
+    for (const e of p.entries) {
+      const files = p.course && e.item && e.matriculation ? seen.get(`${p.course.id}|${e.item}|${e.matriculation}`) ?? [] : [];
+      const others = [...new Set(files.filter((f) => f !== p.file))];
+      if (others.length) {
+        e.reasons.push(`"${e.item}" for this student is also in ${others.join(", ")}`);
+        e.status = "blocked";
+      }
+    }
+  }
+  return out;
+}
+
+const summary = (p: Plan) => ({
+  file: p.file,
+  course: p.course ? `${p.course.id} ${p.course.shortname}` : null,
+  items: p.items,
+  rows: p.entries.length,
+  ready: p.entries.filter((e) => e.status === "ready").length,
+  blocked: p.entries.filter((e) => e.status === "blocked").length,
+  problems: p.problems,
+});
+
+const pathArgs = {
+  path: z.string().describe("A lecturer's .xlsx/.csv, or a folder of them (the Drive folder, downloaded and unzipped)"),
+  courseid: z.number().int().optional().describe("Only for a single file whose name does not identify one course"),
+  items: z
+    .record(z.string(), z.string())
+    .optional()
+    .describe('Only when a column cannot be matched to a grade item: {"midterm": "Midterm"}'),
+};
+
+tool(
+  "grades_check",
+  "Reads only. For each lecturer's grade file (or every file in a folder): which Moodle " +
+    "course its name points at, which gradebook item each mark column goes to (Final, " +
+    "resit, ...) and where the feedback goes (Evaluation / Feedback ...), and for every " +
+    "student whether the row is ready or blocked, with the reason (not a number, student " +
+    "not enrolled in that course, duplicate row...). Also lists enrolled students missing " +
+    "from the file. Marks written 57,5 or 57.5 are both read as 57.5.",
+  pathArgs,
+  async ({ path, courseid, items }) => {
+    const all = await plans(path, courseid, items);
+    return all.map((p) => ({
+      ...summary(p),
+      not_in_file: p.not_in_file,
+      entries: p.entries.map(({ feedback, ...e }) => ({ ...e, feedback_chars: feedback.length })),
+    }));
+  },
+);
+
+/** RFC 4180: quote every field, double the quotes inside. */
+const csvLine = (fields: (string | number)[]) =>
+  fields.map((f) => `"${String(f).replace(/"/g, '""')}"`).join(",");
+
+tool(
+  "grades_csv",
+  "Writes files, not Moodle. For each lecturer's file, a CSV ready for Moodle's " +
+    "gradebook import (Grades > Import > CSV file) into the right course: one row per " +
+    "ready student, identified by ID number, with the mark and — always next to it, since " +
+    "Moodle wipes a grade imported without it — the feedback. Blocked rows go to " +
+    "_to_check.csv with the reason, for the academic office to raise with the lecturer. " +
+    "Marks are written with a decimal point, exactly as the lecturer gave them.",
+  { ...pathArgs, out_dir: z.string().describe("Folder to write into (created if missing)") },
+  async ({ path, courseid, items, out_dir }) => {
+    const { mkdir, writeFile } = await import("node:fs/promises");
+    const { join } = await import("node:path");
+    await mkdir(out_dir, { recursive: true });
+    const all = await plans(path, courseid, items);
+    const written = [];
+    const toCheck: string[] = [csvLine(["file", "row", "matriculation", "assessment", "value in file", "reason"])];
+
+    for (const p of all) {
+      for (const problem of p.problems) toCheck.push(csvLine([p.file, "", "", "", "", problem]));
+      for (const e of p.entries.filter((e) => e.status === "blocked")) {
+        toCheck.push(csvLine([p.file, e.row, e.matriculation ?? "", e.assessment, e.raw, e.reasons.join("; ")]));
+      }
+      if (!p.course) continue;
+
+      // One column per grade item, plus its feedback item when there is one.
+      const kinds = Object.keys(p.items);
+      // A feedback column only where the lecturer wrote feedback: an empty one would
+      // wipe feedback already in Moodle.
+      const withFeedback = new Set(p.entries.filter((e) => e.status === "ready" && e.feedback).map((e) => e.assessment));
+      const fbCol = (k: string) => (withFeedback.has(k) ? p.items[k].feedback_item : null);
+      const header = ["ID number"];
+      for (const k of kinds) {
+        header.push(p.items[k].item);
+        if (fbCol(k)) header.push(fbCol(k)!);
+      }
+      const byStudent = new Map<string, Record<string, (typeof p.entries)[number]>>();
+      for (const e of p.entries.filter((e) => e.status === "ready")) {
+        byStudent.set(e.matriculation!, { ...(byStudent.get(e.matriculation!) ?? {}), [e.assessment]: e });
+      }
+      if (byStudent.size === 0) continue;
+
+      const lines = [csvLine(header)];
+      for (const [matric, marks] of byStudent) {
+        const row: (string | number)[] = [matric];
+        for (const k of kinds) {
+          row.push(marks[k]?.mark ?? "");
+          if (fbCol(k)) row.push(marks[k]?.feedback ?? "");
+        }
+        lines.push(csvLine(row));
+      }
+      const name = `${p.course.shortname}__${p.file.replace(/\.(xlsx|csv)$/i, "")}.csv`;
+      await writeFile(join(out_dir, name), lines.join("\n") + "\n", "utf8");
+      written.push({ csv: name, course: `${p.course.id} ${p.course.shortname}`, students: byStudent.size, columns: header });
+    }
+    await writeFile(join(out_dir, "_to_check.csv"), toCheck.join("\n") + "\n", "utf8");
+    return {
+      out_dir,
+      csv_files: written,
+      to_check: toCheck.length - 1,
+      import_steps:
+        "Moodle > course > Grades > Import > CSV file; encoding UTF-8, separator comma; " +
+        "Map from 'ID number' to 'useridnumber'; map each column to the grade item of the " +
+        "same name (the feedback column to 'Feedback for' its item if it is not a text item).",
+    };
+  },
+);
+
+tool(
+  "grades_verify",
+  "The double check after the import, reads only: for every ready row in the lecturer's " +
+    "file(s), read what Moodle's gradebook now holds for that student on that item and " +
+    "compare, mark and feedback. Needs a token allowed to read the user grade report " +
+    "(the academic office; a lecturer's token usually is not).",
+  pathArgs,
+  async ({ path, courseid, items }) => {
+    const all = await plans(path, courseid, items);
+    const out = [];
+    for (const p of all) {
+      if (!p.course) {
+        out.push({ file: p.file, course: null, problems: p.problems });
+        continue;
+      }
+      const report = await moodle().call<any>("gradereport_user_get_grade_items", { courseid: p.course.id });
+      const held = new Map<string, { grade: number | null; feedback: string }>();
+      for (const u of report.usergrades ?? []) {
+        for (const g of u.gradeitems ?? []) {
+          held.set(`${u.userid}:${plain(g.itemname)}`, {
+            grade: g.graderaw === null || g.graderaw === undefined ? null : Number(g.graderaw),
+            feedback: plain(g.feedback ?? ""),
+          });
+        }
+      }
+      const rows = p.entries
+        .filter((e) => e.status === "ready")
+        .map((e) => {
+          const g = held.get(`${e.userid}:${e.item}`);
+          const fbItem = e.feedback_item ? held.get(`${e.userid}:${e.feedback_item}`) : undefined;
+          const fbHeld = (fbItem?.feedback || g?.feedback || "").replace(/\s+/g, " ").trim();
+          const differences: string[] = [];
+          if (!g || g.grade === null) differences.push("no mark in Moodle");
+          else if (Math.abs(g.grade - (e.mark as number)) > 0.005) differences.push(`mark: file ${e.mark}, Moodle ${g.grade}`);
+          if (e.feedback && fbHeld !== e.feedback.replace(/\s+/g, " ").trim()) differences.push("feedback differs");
+          return { matriculation: e.matriculation, name: e.name, item: e.item, file: e.mark, moodle: g?.grade ?? null, result: differences.length ? "MISMATCH" : "ok", differences };
+        });
+      out.push({
+        file: p.file,
+        course: p.course.shortname,
+        checked: rows.length,
+        ok: rows.filter((r) => r.result === "ok").length,
+        mismatches: rows.filter((r) => r.result !== "ok"),
+      });
+    }
+    return out;
   },
 );
 

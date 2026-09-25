@@ -6,7 +6,7 @@ you ask for it, a mark with written feedback, or an announcement to the class.
 
 The Moodle MCP servers published so far are written from the student's seat:
 *my* courses, *my* grades, *my* deadlines. This one is for the person marking the
-work. Thirteen tools, read-first, with the two writing tools marked as such.
+work. Nineteen tools, read-first, with the writing tools marked as such.
 
 Tested against Moodle 4.5 with the standard `moodle_mobile_app` web service.
 
@@ -30,6 +30,24 @@ Tested against Moodle 4.5 with the standard `moodle_mobile_app` web service.
 | `missing` | enrolled students who have **not** submitted — the morning-after list |
 | `gradebook` | grade items with marks and feedback |
 | `announcements` | recent posts in the course news forum |
+| `attendance_sessions` | the sessions of each attendance register: date, duration, whether taken |
+| `attendance_report` | presences and absences per student, excused apart, with an optional absence limit |
+
+**Lecturers' grade files** — for the academic office that enters marks sent in
+by lecturers as spreadsheets (one file per module, a matriculation number and a
+mark per student for each assessment).
+
+| Tool | Does |
+|---|---|
+| `grades_check` | reads a file or a whole folder: which course each file points at (from its name), which gradebook item each column goes to, and which rows are ready or blocked — mark not a number, student not enrolled in that course, same student twice |
+| `grades_csv` | writes one CSV per file for Moodle's gradebook import (Grades ▸ Import ▸ CSV), mark and feedback side by side, plus `_to_check.csv` with every blocked row and why |
+| `grades_verify` | after the import, reads the gradebook back and compares it with the lecturers' files, row by row |
+
+Marks are copied, never computed: `57,5` and `57.5` are both 57.5, and anything
+uncertain (`ABS`, `5 7`, a cell Excel turned into a date) is reported, not guessed.
+Why a CSV and not a direct write: gradebook items created by hand (the usual
+"Final" and "resit") have no web service that writes them; the CSV import is
+Moodle's own way in.
 
 **Writing** — these change what students see, so the server's instructions tell
 the assistant to confirm with you before calling them.
@@ -38,6 +56,11 @@ the assistant to confirm with you before calling them.
 |---|---|
 | `grade_submission` | mark and written feedback on one submission |
 | `announce` | a post in the news forum; everyone enrolled is emailed |
+| `mark_attendance` | one student's status in one session, e.g. absent → excused after a certificate |
+
+The attendance tools need the `mod_attendance_*` functions to be part of your
+token's web service. On many sites they are not: `whoami` says so
+(`can_read_attendance`), and the site administrator can add them.
 
 ## What it deliberately does not do
 

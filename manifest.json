@@ -2,23 +2,37 @@
   "manifest_version": "0.3",
   "name": "moodle-teacher",
   "display_name": "Moodle (teacher)",
-  "version": "0.1.0",
-  "description": "The teacher's half of Moodle: who is enrolled, who submitted, what is missing, marking with feedback, announcements.",
-  "long_description": "Connects your Moodle to Claude from the teacher's seat rather than the student's. Reading: enrolments, course contents, assignments, submissions with their files, who has not handed in, the gradebook. Writing: a mark with written feedback on one submission, and an announcement in the course news forum. Needs a Moodle web-service token, which you get from Preferences > Security keys on your Moodle, or from your Moodle administrator.",
-  "author": { "name": "Niccolo Salvini", "url": "https://github.com/NiccoloSalvini" },
+  "version": "0.2.0",
+  "description": "The teacher's and the academic office's half of Moodle: enrolments, submissions, attendance, lecturers' grade files checked and turned into gradebook imports.",
+  "long_description": "Connects your Moodle to Claude from the staff side rather than the student's. Reading: enrolments, course contents, assignments, submissions, the gradebook, attendance registers with absences per student. Lecturers' grade spreadsheets: checked against Moodle (right course, enrolled students, marks that are really numbers) and turned into CSV files for Moodle's gradebook import. Writing, always after you confirm: a mark with feedback on a submission, an announcement, an attendance status. Needs a Moodle web-service token (Preferences > Security keys, or from your Moodle administrator).",
+  "author": {
+    "name": "Niccolo Salvini",
+    "url": "https://github.com/NiccoloSalvini"
+  },
   "homepage": "https://github.com/NiccoloSalvini/mcp-moodle-teacher",
   "documentation": "https://github.com/NiccoloSalvini/mcp-moodle-teacher#readme",
   "support": "https://github.com/NiccoloSalvini/mcp-moodle-teacher/issues",
-  "repository": { "type": "git", "url": "https://github.com/NiccoloSalvini/mcp-moodle-teacher" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/NiccoloSalvini/mcp-moodle-teacher"
+  },
   "license": "MIT",
   "icon": "icon.png",
-  "keywords": ["moodle", "teaching", "grading", "lms", "education"],
+  "keywords": [
+    "moodle",
+    "teaching",
+    "grading",
+    "lms",
+    "education"
+  ],
   "server": {
     "type": "node",
     "entry_point": "dist/index.js",
     "mcp_config": {
       "command": "node",
-      "args": ["${__dirname}/dist/index.js"],
+      "args": [
+        "${__dirname}/dist/index.js"
+      ],
       "env": {
         "MOODLE_URL": "${user_config.moodle_url}",
         "MOODLE_TOKEN": "${user_config.moodle_token}"
@@ -41,22 +55,91 @@
     }
   },
   "compatibility": {
-    "platforms": ["darwin", "win32", "linux"],
-    "runtimes": { "node": ">=18.0.0" }
+    "platforms": [
+      "darwin",
+      "win32",
+      "linux"
+    ],
+    "runtimes": {
+      "node": ">=18.0.0"
+    }
   },
   "tools": [
-    { "name": "whoami", "description": "Who the token belongs to and what it may do" },
-    { "name": "list_functions", "description": "Web-service functions this token may call" },
-    { "name": "my_courses", "description": "Courses this account is enrolled in" },
-    { "name": "students", "description": "Who is enrolled, with role and last access" },
-    { "name": "course_contents", "description": "Sections and modules as students see them" },
-    { "name": "assignments", "description": "Assignments with due date, scale and brief" },
-    { "name": "submissions", "description": "Who handed in what, with files" },
-    { "name": "submission_status", "description": "One student on one assignment" },
-    { "name": "missing", "description": "Students who have not submitted" },
-    { "name": "gradebook", "description": "Grade items with marks and feedback" },
-    { "name": "grade_submission", "description": "Writes a mark and feedback on a submission" },
-    { "name": "announce", "description": "Writes an announcement in the news forum" },
-    { "name": "announcements", "description": "Recent announcements" }
+    {
+      "name": "whoami",
+      "description": "Who the token belongs to and what it may do"
+    },
+    {
+      "name": "list_functions",
+      "description": "Web-service functions this token may call"
+    },
+    {
+      "name": "my_courses",
+      "description": "Courses this account is enrolled in"
+    },
+    {
+      "name": "students",
+      "description": "Who is enrolled, with role and last access"
+    },
+    {
+      "name": "course_contents",
+      "description": "Sections and modules as students see them"
+    },
+    {
+      "name": "assignments",
+      "description": "Assignments with due date, scale and brief"
+    },
+    {
+      "name": "submissions",
+      "description": "Who handed in what, with files"
+    },
+    {
+      "name": "submission_status",
+      "description": "One student on one assignment"
+    },
+    {
+      "name": "missing",
+      "description": "Students who have not submitted"
+    },
+    {
+      "name": "gradebook",
+      "description": "Grade items with marks and feedback"
+    },
+    {
+      "name": "grade_submission",
+      "description": "Writes a mark and feedback on a submission"
+    },
+    {
+      "name": "announce",
+      "description": "Writes an announcement in the news forum"
+    },
+    {
+      "name": "announcements",
+      "description": "Recent announcements"
+    },
+    {
+      "name": "attendance_sessions",
+      "description": "Sessions of the attendance register, taken or not"
+    },
+    {
+      "name": "attendance_report",
+      "description": "Presences and absences per student, with the absence limit"
+    },
+    {
+      "name": "mark_attendance",
+      "description": "Writes one student's status in one session"
+    },
+    {
+      "name": "grades_check",
+      "description": "Checks lecturers' grade files: course, gradebook item, enrolment, marks"
+    },
+    {
+      "name": "grades_csv",
+      "description": "Writes one Moodle gradebook-import CSV per file, plus what to check"
+    },
+    {
+      "name": "grades_verify",
+      "description": "Double-checks the gradebook against the lecturers' files"
+    }
   ]
 }

@@ -1,6 +1,6 @@
 {
   "name": "mcp-moodle-teacher",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "MCP server for the teacher's half of Moodle: enrolments, submissions, what is missing, grading with feedback, announcements",
   "license": "MIT",
   "author": "Niccolo Salvini",
@@ -37,12 +37,13 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
+    "exceljs": "^4.4.0",
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@anthropic-ai/mcpb": "^2.1.2",
     "@types/node": "^22",
     "esbuild": "^0.28.2",
-    "typescript": "^5.7.0",
-    "@anthropic-ai/mcpb": "^2.1.2"
+    "typescript": "^5.7.0"
   }
 }
